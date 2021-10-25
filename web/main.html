@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Hello, World!</title>
+
+    <!-- Include eel.js - note this file doesn't exist in the 'web' directory -->
+    <script type="text/javascript" src="/eel.js"></script>
+    <script type="text/javascript">
+      window.onresize = function () {
+        if (window.outerWidth < 800 || window.outerHeight < 500) {
+          window.resizeTo(800, 500);
+        }
+      };
+
+      eel.expose(say_hello_js); // Expose this function to Python
+      function say_hello_js(x) {
+        console.log("Hello from " + x);
+      }
+
+      say_hello_js("Javascript World!");
+      eel.say_hello_py("Javascript World!"); // Call a Python function
+
+      // Paste the clipboard
+      document.addEventListener("DOMContentLoaded", function () {
+        let pasteButton = document.getElementsByTagName("button")[0];
+        pasteButton.addEventListener("click", function () {
+          navigator.clipboard.readText().then(
+            (cliptext) =>
+              (document.getElementById("clipboard-paste").innerText = cliptext),
+            (err) => console.log(err)
+          );
+        });
+      });
+      //end paste the clipboard
+    </script>
+  </head>
+
+  <body>
+    Hello, World!
+    <button>Show the Copied Text</button>
+    <p id="clipboard-paste"></p>
+  </body>
+</html>
