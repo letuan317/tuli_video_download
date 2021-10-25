@@ -12,8 +12,11 @@ import requests
 from termcolor import cprint
 
 pyglet.font.add_file('./assets/SourceCodePro-Regular.ttf')
+pyglet.font.add_file('./assets/SourceCodePro-Bold.ttf')
 
-default_font = "SourceCodePro"
+default_font = "SourceCodePro-Regular"
+default_font_bold = "SourceCodePro-Bold"
+
 color_dark_green = "#264653"
 color_light_green = "#b7b7a4"
 color_green = "#2a9d8f"
@@ -51,12 +54,14 @@ def download_clicked():
 
 with open('./data.json') as f:
     data = json.load(f)
+with open('./data1.json') as f:
+    data1 = json.load(f)
 
 
 class ScrollableFrame(ttk.Frame):
     def __init__(self, container, *args, **kwargs):
         super().__init__(container, *args, **kwargs)
-        canvas = tk.Canvas(self)
+        canvas = tk.Canvas(self, width=775, height=400)
         scrollbar = ttk.Scrollbar(
             self, orient="vertical", command=canvas.yview)
         self.scrollable_frame = ttk.Frame(canvas)
@@ -77,9 +82,16 @@ class ScrollableFrame(ttk.Frame):
         scrollbar.pack(side="right", fill="y")
 
 
+class ItemFrame(ttk.Frame):
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+        canvas = tk.Canvas(self, width=775, height=100, bg="red")
+        canvas.pack()
+
+
 class App(object):
     def __init__(self):
-        self.listOfLinks = [data]
+        self.listOfLinks = [data, data1]
         self.listOfComplete = []
 
     def GUI(self):
@@ -88,7 +100,7 @@ class App(object):
             './assets/bonfire_stake_campfire_blaze_fire_log_icon_194257.ico')
         root.geometry('800x500')
         root.resizable(False, False)
-        #root.minsize(800, 500)
+        # root.minsize(800, 500)
         root.title('Youtube Download Demo')
 
         frame1 = tk.Frame(master=root, width=800,
@@ -131,17 +143,19 @@ class App(object):
         settingText = tk.Label(root, text="Setting", bg=color_menu)
         settingText.place(x=705, y=60)
 
+        frame = ScrollableFrame(root)
+        '''
+        for i in range(50):
+            ttk.Label(frame.scrollable_frame,
+                      text="Sample scrolling labelSample scrolling labelSample scrolling labelSample scrolling labelSample scrolling labelSample scrolling labelSample scrolling labelSample scrolling label").pack()
+        '''
         # list of links
         default_list_x = 0
         default_list_y = 100
+        ItemFrame(frame.scrollable_frame)
+        item_row = 0
         for i in range(0, len(self.listOfLinks)):
             print(self.listOfLinks[i]["id"])
-            # 1280 720
-            testPhoto = ImageTk.PhotoImage(
-                Image.open("./temp/"+self.listOfLinks[i]["id"]+".png").resize((128, 72), Image.ANTIALIAS))
-            test = tk.Label(root, image=testPhoto)
-            test.place(x=0, y=default_list_y+i*100)
-
             print(self.listOfLinks[i]["channel"].replace(" ", ""))
             print(self.listOfLinks[i]["thumbnail"])
             print(self.listOfLinks[i]["webpage_url"])
@@ -150,15 +164,41 @@ class App(object):
                 print(formats[f]["format_id"], formats[f]["format_note"], formats[f]
                       ["filesize"], formats[f]["fps"], formats[f]["quality"], formats[f]["ext"])
 
-        frame = ScrollableFrame(root)
+            canvas = ttk.Frame(frame, width=775, height=100)
 
-        for i in range(50):
-            ttk.Label(frame.scrollable_frame,
-                      text="Sample scrolling labelSample scrolling labelSample scrolling labelSample scrolling labelSample scrolling labelSample scrolling labelSample scrolling labelSample scrolling label").pack()
+            # 1280 720
+            testPhoto = ImageTk.PhotoImage(
+                Image.open("./temp/"+self.listOfLinks[i]["id"]+".png").resize((128, 72), Image.ANTIALIAS))
+            test = ttk.Label(canvas, width=30,
+                             image=testPhoto).grid(row=item_row, rowspan=2, column=0)
+            # test.place(x=0, y=0)
+            ttk.Label(canvas,
+                      text="title", font=('Helvetica bold', 12)).grid(row=item_row+1, column=1, columnspan=4)
+            ttk.Label(canvas, width=30,
+                      text="😎 "+self.listOfLinks[i]["channel"].replace(" ", "")).grid(row=item_row+1, column=1)
+            ttk.Label(canvas, width=15,
+                      text="📏 100 MB").grid(row=item_row+1, column=2)
+            ttk.Label(canvas, width=15,
+                      text="🎬 MP4").grid(row=item_row+1, column=3)
+            #ttk.Label(frame.scrollable_frame, width=40,text="⚙ 137-1080p").grid(row=item_row+1, column=4)
+            months = ("⚙ 137-1080p", 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
+            selected_month = tk.StringVar()
+            month_cb = ttk.Combobox(
+                canvas, textvariable=selected_month)
+            month_cb['values'] = months
+            month_cb.current(0)
+            month_cb.grid(row=item_row+1, column=4)
+            month_cb.bind('<<ComboboxSelected>>', self.month_changed)
+            canvas.pack()
 
         frame.place(x=0, y=90)
 
         root.mainloop()
+
+    def month_changed(self, event):
+        country = event.widget.get()
+        print(country)
 
     def PasteLinkBtnAction(self, event):
         yt_link = pc.paste()

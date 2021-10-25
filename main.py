@@ -73,8 +73,9 @@ ydl = youtube_dl.YoutubeDL({'outtmpl': '%(id)s.%(ext)s'})
 
 with ydl:
     result = ydl.extract_info(
-        'https://www.youtube.com/watch?v=cM0SZQVcc54&ab_channel=MinjeongJeong',
+        # 'https://www.youtube.com/watch?v=cM0SZQVcc54&ab_channel=MinjeongJeong',
         # 'https://www.youtube.com/watch?v=FtMuFJkGuxI&list=PLQzXZnfwrxEyD6E73WjbiWdion3Nvn8B3&ab_channel=MinjeongJeong',
+        'https://www.youtube.com/watch?v=2UMJF4_NmSo',
         download=False  # We just want to extract the info
     )
 
@@ -86,7 +87,7 @@ else:
     video = result
 # print(video)
 
-with open('data.json', 'w') as outfile:
+with open('data1.json', 'w') as outfile:
     json.dump(video, outfile)
 
 
