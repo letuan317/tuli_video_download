@@ -1,16 +1,7 @@
 let checkPasted = false;
 let checkStarted = false;
 let globalListOfLinks = [];
-window.onload = function () {
-  const numbers = [45, 4, 9, 16, 25];
-
-  let txt = "";
-  for (let x in numbers) {
-    txt += numbers[x] + "<br>";
-  }
-
-  document.getElementById("demo1").innerHTML = txt;
-};
+window.onload = function () {};
 
 window.onresize = function () {
   if (window.outerWidth < 800 || window.outerHeight < 500) {
@@ -22,6 +13,8 @@ eel.expose(say_hello_js);
 function say_hello_js(x) {
   console.log("Hello from " + x);
 }
+say_hello_js("Javascript World!");
+eel.say_hello_py("Javascript World!"); // Call a Python function
 
 eel.expose(error_message_js);
 function error_message_js(message) {
@@ -33,6 +26,7 @@ function error_message_js(message) {
 
 eel.expose(download_process_js);
 function download_process_js(status) {
+  console.log(status);
   document.getElementById("footer").innerText = status;
   document.getElementById("footer").style.color = "white";
 }
@@ -89,7 +83,6 @@ function update_listOfLinks_js(listOfLinks) {
   document.getElementById("list-links").innerHTML = new_items;
   checkPasted = false;
 }
-eel.expose(update_);
 function ChangeFormat(item_id) {
   var x = document.getElementById(item_id).value;
   var temp_id = x.split("-")[0];
@@ -102,9 +95,6 @@ function ChangeFormat(item_id) {
   }
   eel.update_listOfLinks_py(globalListOfLinks);
 }
-say_hello_js("Javascript World!");
-eel.say_hello_py("Javascript World!"); // Call a Python function
-
 // Paste the clipboard
 document.addEventListener("DOMContentLoaded", function () {
   let pasteButton = document.getElementsByTagName("button")[0];

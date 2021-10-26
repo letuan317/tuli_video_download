@@ -1,27 +1,16 @@
-import logging
-import threading
-import time
+import eel
+
+# Set web files folder and optionally specify which file types to check for eel.expose()
+#   *Default allowed_extensions are: ['.js', '.html', '.txt', '.htm', '.xhtml']
+eel.init('web', allowed_extensions=['.js', '.html'])
 
 
-def thread_function(name):
-    logging.info("Thread %s: starting", name)
-    time.sleep(2)
-    logging.info("Thread %s: finishing", name)
+@eel.expose                         # Expose this function to Javascript
+def say_hello_py(x):
+    print('Hello from %s' % x)
 
 
-if __name__ == "__main__":
-    format = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=format, level=logging.INFO,
-                        datefmt="%H:%M:%S")
+say_hello_py('Python World!')
+eel.say_hello_js('Python World!')   # Call a Javascript function
 
-    threads = list()
-    for index in range(3):
-        logging.info("Main    : create and start thread %d.", index)
-        x = threading.Thread(target=thread_function, args=(index,))
-        threads.append(x)
-        x.start()
-
-    for index, thread in enumerate(threads):
-        logging.info("Main    : before joining thread %d.", index)
-        thread.join()
-        logging.info("Main    : thread %d done", index)
+eel.start('main.html')             # Start (this blocks and enters loop)

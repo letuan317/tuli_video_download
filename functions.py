@@ -53,7 +53,7 @@ def ExtractInfoData(video_data):
         "id": video_data["id"],
         "channel": video_data["channel"].replace(" ", ""),
         "webpage_url": video_data["webpage_url"],
-        "title": video_data["title"][:50],
+        "title": video_data["title"][:100],
         "thumbnail": video_data["thumbnail"],
         "select_format": video_data["formats"][0]["format_id"],
         "formats": video_data["formats"],

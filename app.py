@@ -8,8 +8,12 @@ import os
 import threading
 import multiprocessing
 
+# Set web files folder and optionally specify which file types to check for eel.expose()
+#   *Default allowed_extensions are: ['.js', '.html', '.txt', '.htm', '.xhtml']
+eel.init('web', allowed_extensions=['.js', '.html'])
+
 if not os.path.exists("videos"):
-    os.system('mkdir videos')
+    os.mkdir('./videos')
 '''
 with open('./data.json') as f:
     data = json.load(f)
@@ -39,20 +43,6 @@ if os.path.exists("downloaded.txt"):
         for line in fr:
             temp_id = line.split(" ")[1]
             listOfLinksDownloaded.append(temp_id)
-
-# Set web files folder and optionally specify which file types to check for eel.expose()
-#   *Default allowed_extensions are: ['.js', '.html', '.txt', '.htm', '.xhtml']
-eel.init('web', allowed_extensions=['.js', '.html'])
-
-
-@eel.expose                         # Expose this function to Javascript
-def say_hello_py(x):
-    print('Hello from %s' % x)
-
-
-@eel.expose
-def server_log(message):
-    print(message)
 
 
 @eel.expose
@@ -93,25 +83,28 @@ def get_info_py(linkData):
 
 @eel.expose
 def update_listOfLinks_py(temp_data):
+    global listOfLinks
     cprint("[INFO] Update select_format", "green")
+    print(listOfLinks["data"][0]["select_format"])
     listOfLinks["data"] = temp_data.copy()
+    print(listOfLinks["data"][0]["select_format"])
+    with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
+        json.dump(listOfLinks, outfile)
 
 
 def my_hook(d):
-    eel.download_process_js(d)
     try:
         status = 'finished' if(d['status'] == 'finished') else d['_percent_str']+" of "+d['_total_bytes_str'] + \
             " at "+d['_speed_str']+" ETA "+d['_eta_str']
     except Exception as e:
-        print(d)
+        print(type(d))
         status = "Downloaded" if(
-            "already been recorded in archive" in d) else "Error"
-
+            "already been recorded in archive" in str(d)) else "Error"
     eel.download_process_js(status)
 
 
 def run_downloaded_script():
-    if(len(listOfLinks["data"]) > 0):
+    if(listOfLinks["data"]):
         for idx, video in enumerate(listOfLinks["data"]):
             if(video["status"] == "Wait"):
                 ydl_opts = {
@@ -131,11 +124,13 @@ def run_downloaded_script():
 
 @eel.expose
 def start_download_py():
+    print(listOfLinks["data"][0]["select_format"])
     cprint("[INFO] Start download videos", "green")
+
     global GLOBAL_THREAD
-    #GLOBAL_THREAD = threading.Thread(target=run_downloaded_script, args=())
+    # GLOBAL_THREAD = threading.Thread(target=run_downloaded_script, args=())
     GLOBAL_THREAD = multiprocessing.Process(target=run_downloaded_script)
-    #GLOBAL_THREAD.daemon = True
+    GLOBAL_THREAD.daemon = True
     GLOBAL_THREAD.start()
 
 
@@ -145,9 +140,9 @@ def stop_download_py():
     GLOBAL_THREAD.terminate()
 
 
-@eel.expose
-def windows_close_py():
-    cprint("[!] Close windows", "red")
+@eel.expose                         # Expose this function to Javascript
+def say_hello_py(x):
+    print('Hello from %s' % x)
 
 
 say_hello_py('Python World!')
@@ -159,6 +154,8 @@ if __name__ == "__main__":
 
 
 '''
+
+
 [X] downloaded.txt
 [X] load file downloaded.txt
 [X] select_format, update format
@@ -167,8 +164,8 @@ if __name__ == "__main__":
 [X] run download in thread
 [X] if downloaded, update item status
 [X] stop action, stop thread
-[ ] if start, select disable
-[ ] refresh button, action sort wait, downloaded
-[ ] settings: set videos folder, username, password
-[ ] windows close, processes terminate
+[] if start, select disable
+[] refresh button, action sort wait, downloaded
+[] settings: set videos folder, username, password
+[] windows close, processes terminate
 '''
