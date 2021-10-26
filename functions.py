@@ -40,3 +40,24 @@ def GetYoutubeInfo(yt_link, data_last_links):
         return True, video_data
     else:
         return False, None
+
+
+def ExtractInfoData(video_data):
+    for i in range(len(video_data["formats"])-1, 0, -1):
+        if(video_data["formats"][i]["width"] == 1920 and
+           video_data["formats"][i]["ext"] == "mp4"):
+            video_data["formats"].insert(
+                0, video_data["formats"][i])
+            break
+    data = {
+        "id": video_data["id"],
+        "channel": video_data["channel"].replace(" ", ""),
+        "webpage_url": video_data["webpage_url"],
+        "title": video_data["title"][:50],
+        "thumbnail": video_data["thumbnail"],
+        "select_format": video_data["formats"][0]["format_id"],
+        "formats": video_data["formats"],
+        "status": "Wait",
+        # Wait, Dowloaded, Error
+    }
+    return data

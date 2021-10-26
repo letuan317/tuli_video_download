@@ -1,5 +1,6 @@
 let checkPasted = false;
-
+let checkStarted = false;
+let globalListOfLinks = [];
 window.onload = function () {
   const numbers = [45, 4, 9, 16, 25];
 
@@ -16,7 +17,6 @@ window.onresize = function () {
     window.resizeTo(800, 500);
   }
 };
-
 // Expose this function to Python
 eel.expose(say_hello_js);
 function say_hello_js(x) {
@@ -28,24 +28,37 @@ function error_message_js(message) {
   console.log("error_message_js: " + message);
   document.getElementById("footer").innerText = message;
   document.getElementById("footer").style.color = "red";
+  checkPasted = false;
+}
+
+eel.expose(download_process_js);
+function download_process_js(status) {
+  document.getElementById("footer").innerText = status;
+  document.getElementById("footer").style.color = "white";
 }
 
 eel.expose(update_listOfLinks_js);
 function update_listOfLinks_js(listOfLinks) {
+  globalListOfLinks = listOfLinks;
   let new_items = "";
   for (let i in listOfLinks) {
-    console.log(listOfLinks[i]);
     new_items +=
-      '<div class="list-links"><div class="item"><div class="left"><img src="' +
+      '<div class="item"><div class="left"><img src="' +
       listOfLinks[i].thumbnail +
       '"alt="youtube"/></div><div class="right"><div class="top"><h5>' +
-      listOfLinks[i].title.substring(0, 50) +
+      listOfLinks[i].title +
       '</h5></div><div class="bottom"><p class="channel">' +
       listOfLinks[i].channel +
-      '</p><select name="formats">';
+      '</p><select id="' +
+      listOfLinks[i].id +
+      '" onchange=ChangeFormat("' +
+      listOfLinks[i].id +
+      '")>';
     for (let j in listOfLinks[i].formats) {
       new_items +=
         '<option value="' +
+        listOfLinks[i].id +
+        "-" +
         listOfLinks[i].formats[j].format_id +
         '">' +
         listOfLinks[i].formats[j].format +
@@ -67,13 +80,28 @@ function update_listOfLinks_js(listOfLinks) {
       new_items += "</option>";
     }
 
-    new_items += "</select></div></div></div></div>";
+    new_items +=
+      '</select><p id="' +
+      listOfLinks[i].id +
+      '-status"></p></p></div></div></div>';
   }
 
-  console.log(listOfLinks[0].id);
   document.getElementById("list-links").innerHTML = new_items;
+  checkPasted = false;
 }
-
+eel.expose(update_);
+function ChangeFormat(item_id) {
+  var x = document.getElementById(item_id).value;
+  var temp_id = x.split("-")[0];
+  var temp_select_format = x.split("-")[1];
+  for (let i in globalListOfLinks) {
+    if (globalListOfLinks[i].id === temp_id) {
+      globalListOfLinks[i].select_format = temp_select_format;
+      break;
+    }
+  }
+  eel.update_listOfLinks_py(globalListOfLinks);
+}
 say_hello_js("Javascript World!");
 eel.say_hello_py("Javascript World!"); // Call a Python function
 
@@ -95,7 +123,7 @@ function pasteLinkBtnAction() {
   if (checkPasted === false) {
     navigator.clipboard.readText().then(
       (cliptext) => {
-        eel.getInfo(cliptext);
+        eel.get_info_py(cliptext);
         checkPasted = true;
       },
       (err) => console.log(err)
@@ -104,14 +132,30 @@ function pasteLinkBtnAction() {
 }
 
 function playBtnAction() {
-  eel.server_log("Play button clicked");
-  console.log("Play button clicked");
-  const numbers = [45, 4, 9, 16, 25];
+  // send download action to Python
+  // check skip downloaded, start download with default folder
+  if (checkStarted == false) {
+    checkStarted = true;
+    checkPasted = true;
+    eel.start_download_py();
+    document.getElementById("pasteLinkBtnIcon").style.opacity = "0.3";
+    document.getElementById("playBtnIcon").style.opacity = "0.3";
 
-  let txt = "";
-  for (let x in numbers) {
-    txt += numbers[x] + "<br>";
+    for (let i in globalListOfLinks) {
+      document.getElementById(globalListOfLinks[i].id).disabled = true;
+    }
   }
+}
+function stopBtnAction() {
+  if (checkStarted == true) {
+    checkStarted = false;
+    checkPasted = false;
+    eel.stop_download_py();
+    document.getElementById("pasteLinkBtnIcon").style.opacity = "1";
+    document.getElementById("playBtnIcon").style.opacity = "1";
 
-  document.getElementById("demo1").innerHTML = txt;
+    for (let i in globalListOfLinks) {
+      document.getElementById(globalListOfLinks[i].id).disabled = false;
+    }
+  }
 }
