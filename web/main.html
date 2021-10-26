@@ -2,40 +2,52 @@
 <html>
   <head>
     <title>Hello, World!</title>
-
+    <link rel="stylesheet" href="css/style.css" />
     <!-- Include eel.js - note this file doesn't exist in the 'web' directory -->
     <script type="text/javascript" src="/eel.js"></script>
-    <script type="text/javascript">
-      window.onresize = function () {
-        if (window.outerWidth < 800 || window.outerHeight < 500) {
-          window.resizeTo(800, 500);
-        }
-      };
-
-      eel.expose(say_hello_js); // Expose this function to Python
-      function say_hello_js(x) {
-        console.log("Hello from " + x);
-      }
-
-      say_hello_js("Javascript World!");
-      eel.say_hello_py("Javascript World!"); // Call a Python function
-
-      // Paste the clipboard
-      document.addEventListener("DOMContentLoaded", function () {
-        let pasteButton = document.getElementsByTagName("button")[0];
-        pasteButton.addEventListener("click", function () {
-          navigator.clipboard.readText().then(
-            (cliptext) =>
-              (document.getElementById("clipboard-paste").innerText = cliptext),
-            (err) => console.log(err)
-          );
-        });
-      });
-      //end paste the clipboard
-    </script>
+    <script type="text/javascript" src="js/functions.js"></script>
   </head>
 
   <body>
+    <div class="menu-container">
+      <div class="item">
+        <img
+          src="img/icons8-plus-48.png"
+          alt="button"
+          onclick="pasteLinkBtnAction()"
+        />
+        <p>Paste Link</p>
+      </div>
+      <div class="item">
+        <img
+          src="img/icons8-play-48.png"
+          alt="button"
+          onclick="playBtnAction()"
+        />
+        <p>Start</p>
+      </div>
+      <div class="item">
+        <img
+          src="img/icons8-pause-48.png"
+          alt="button"
+          onclick="playBtnAction()"
+        />
+        <p>Pause</p>
+      </div>
+      <div class="item-right">
+        <img
+          src="img/icons8-settings-48.png"
+          alt="button"
+          onclick="playBtnAction()"
+        />
+        <p>Settings</p>
+      </div>
+    </div>
+    <div id="list-links" class="list-links"></div>
+    <div class="footer"><p id="footer">Status</p></div>
+    <br />
+    <br />
+    <p id="demo" class="exercise-list"></p>
     Hello, World!
     <button>Show the Copied Text</button>
     <p id="clipboard-paste"></p>
