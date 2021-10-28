@@ -1,40 +1,51 @@
-'''
 
-'''
 from __future__ import unicode_literals
+import sys
 import youtube_dl
 import eel
 from termcolor import cprint
 import functions
 import json
 import os
-import multiprocessing
-import threading
+import subprocess
 # Set web files folder and optionally specify which file types to check for eel.expose()
 #   *Default allowed_extensions are: ['.js', '.html', '.txt', '.htm', '.xhtml']
 eel.init('web', allowed_extensions=['.js', '.html'])
 
-if not os.path.exists("videos"):
-    os.mkdir('./videos')
-'''
-with open('./data.json') as f:
-    data = json.load(f)
-with open('./data1.json') as f:
-    data1 = json.load(f)
-data = functions.ExtractInfoData(data)
-data1 = functions.ExtractInfoData(data1)
-'''
 
 # init data
+DEFAULT_PATH_CONFIG = "./config.json"
 DEFAULT_PATH_STORAGE = "./videos/"
+DEFAULT_PATH_DOWNLOADED = "./downloaded.txt"
 DEFAULT_PATH_DATABASE = "./database.json"
+DEFAULT_PATH_VIDEO_ERROR_LOG = "./error_video.log"
+
+# Load config from config.js
+if os.path.exists(DEFAULT_PATH_CONFIG):
+    with open(DEFAULT_PATH_CONFIG) as json_file:
+        data_config = json.load(json_file)
+    DEFAULT_PATH_STORAGE = data_config["path_storage"]+"/"
+    DEFAULT_PATH_DOWNLOADED = data_config["path_downloaded"] + \
+        "/downloaded.txt"
+
+# Send the setup to js
+eel.setup_config_js({
+    "path_storage": DEFAULT_PATH_STORAGE[:len(DEFAULT_PATH_STORAGE)-1],
+    "path_downloaded": DEFAULT_PATH_DOWNLOADED[:len(DEFAULT_PATH_DOWNLOADED)-len("/downloaded.txt")]
+}
+)
+
+if not os.path.exists(DEFAULT_PATH_STORAGE):
+    os.mkdir(DEFAULT_PATH_STORAGE)
+
+
 global GLOBAL_THREAD
 # Load database
 if os.path.exists(DEFAULT_PATH_DATABASE):
     with open(DEFAULT_PATH_DATABASE) as json_file:
         listOfLinks = json.load(json_file)
     for idx, video in enumerate(listOfLinks["data"]):
-        if(video["status"] == "Downloading"):
+        if(video["status"] in ["Downloading", "Error"]):
             video["status"] = "Wait"
     with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
         json.dump(listOfLinks, outfile)
@@ -43,11 +54,11 @@ else:
 
 # Load downloaded video ids
 listOfLinksDownloaded = []
-if os.path.exists("downloaded.txt"):
-    with open("downloaded.txt", "r") as fr:
+if os.path.exists(DEFAULT_PATH_DOWNLOADED):
+    with open(DEFAULT_PATH_DOWNLOADED, "r") as fr:
         for line in fr:
             temp_id = line.split(" ")[1]
-            listOfLinksDownloaded.append(temp_id)
+            listOfLinksDownloaded.append(temp_id.replace("\n", ""))
 
 
 @eel.expose
@@ -59,33 +70,41 @@ def get_info_py(linkData):
         cprint("Not youtube link " + linkData, "red")
     else:
         temp_id = linkData.split('watch?v=')[1]
-        checkAdded = False
-        if(listOfLinks["data"]):
-            for item in listOfLinks["data"]:
-                if(item["id"] == temp_id):
-                    checkAdded = True
-                    break
-        if not checkAdded:
-            cprint("Good link", "green")
-            check, data_video = functions.GetYoutubeInfo(
-                linkData, listOfLinksDownloaded)
-            if(check == False and data_video == None):
-                eel.error_message_js(
-                    "Youtube link is already downloaded: " + linkData)
-            elif(check == True):
-                data_video = functions.ExtractInfoData(
-                    data_video)
-                listOfLinks["data"].append(data_video)
-                with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
-                    json.dump(listOfLinks, outfile)
-                # need add data_video to bottom of undownload list, before downloaded list
-                eel.update_listOfLinks_js(listOfLinks["data"])
-            else:
-                eel.error_message_js(linkData+" "+data_video)
-        else:
-            cprint("Link added", "red")
+        if(temp_id in listOfLinksDownloaded):
             eel.error_message_js(
-                "Youtube link is already added: " + linkData)
+                "Youtube link is already downloaded: " + temp_id)
+        else:
+            checkAdded = False
+            if(listOfLinks["data"]):
+                for item in listOfLinks["data"]:
+                    if(item["id"] == temp_id):
+                        checkAdded = True
+                        break
+            if not checkAdded:
+                cprint("Good link", "green")
+                check, data_video = functions.GetYoutubeInfo(
+                    linkData, listOfLinksDownloaded)
+                if(check == False and data_video == None):
+                    eel.error_message_js(
+                        "Youtube link is already downloaded: " + temp_id)
+                elif(check == True):
+                    data_video = functions.ExtractInfoData(
+                        data_video)
+                    listOfLinks["data"].append(data_video)
+                    with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
+                        json.dump(listOfLinks, outfile)
+                    # need add data_video to bottom of undownload list, before downloaded list
+                    eel.update_listOfLinks_js(listOfLinks["data"])
+                else:   # link cant be get info by age, ...
+                    eel.error_message_js(linkData+" "+data_video)
+                    fw = open(DEFAULT_PATH_VIDEO_ERROR_LOG, "a")
+                    fw.write(linkData+"\n")
+                    fw.close()
+
+            else:
+                cprint("Link added", "red")
+                eel.error_message_js(
+                    "Youtube link is already added: " + temp_id)
 
 
 @eel.expose
@@ -97,13 +116,25 @@ def update_listOfLinks_py(temp_data):
         json.dump(listOfLinks, outfile)
 
 
+@eel.expose
+def delete_item_action_py(item_id):
+    cprint("[INFO] Delete video id "+item_id, "green")
+    for idx, video in enumerate(listOfLinks["data"]):
+        if(video["id"] == item_id):
+            listOfLinks["data"].remove(video)
+            break
+    with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
+        json.dump(listOfLinks, outfile)
+    eel.update_listOfLinks_js(listOfLinks["data"])
+
+
 def my_hook(d):
     try:
         if(d['status'] == 'finished'):
             status = 'Finished'
             temp_check = False
             for idx, video in enumerate(listOfLinks["data"]):
-                if(video["status"] == "Downloading"):
+                if(video["status"] == ["Downloading", "Error"]):
                     video["status"] = "Wait"
                     temp_check = True
             if(temp_check):
@@ -130,8 +161,8 @@ def run_downloaded_script():
                 eel.update_listOfLinks_js(listOfLinks["data"])
                 ydl_opts = {
                     'format': video["select_format"],
-                    'download_archive': './downloaded.txt',
-                    'outtmpl': DEFAULT_PATH_STORAGE+video["channel"]+'-'+video["title"]+".%(ext)s",
+                    'download_archive': DEFAULT_PATH_DOWNLOADED,
+                    'outtmpl': DEFAULT_PATH_STORAGE+video["channel"]+'-'+video['id']+'-'+video["title"]+".%(ext)s",
                     'noplaylist': True,
                     'progress_hooks': [my_hook],
                 }
@@ -144,10 +175,12 @@ def run_downloaded_script():
                 except Exception as e:
                     cprint("[!] run_downloaded_script: Error downloading", 'red')
                     print(e)
-                    eel.error_message_js(video["title"][:20]+" "+e)
+                    eel.error_message_js(
+                        "[!] run_downloaded_script: Error downloading" + video["id"])
                     video["status"] = "Error"
                     eel.update_listOfLinks_js(listOfLinks["data"])
                     continue
+    eel.download_process_js("Done")
 
 
 @eel.expose
@@ -164,8 +197,8 @@ def start_download_py():
 
 
 @eel.expose
-def stop_download_py():
-    cprint("\n[!] Stop download", "red")
+def pause_download_py():
+    cprint("\n[!] Pausing download", "red")
     # GLOBAL_THREAD.terminate()
     GLOBAL_THREAD.kill()
     for idx, video in enumerate(listOfLinks["data"]):
@@ -174,6 +207,87 @@ def stop_download_py():
             eel.update_listOfLinks_js(listOfLinks["data"])
             eel.download_process_js("Paused")
             break
+
+
+@eel.expose
+def add_file_action_py():
+    path_filename = functions.DialogSelectFile()
+    if os.path.exists(path_filename) and path_filename[len(path_filename)-4:len(path_filename)] == ".txt":
+        eel.add_file_response_js()
+        eel.notify_message_js("Reading "+path_filename)
+        try:
+            fr = open(path_filename, 'r')
+            for line in fr:
+                eel.notify_message_js("Processing...")
+                get_info_py(line.replace("\n", ""))
+            fr.close()
+        except Exception as e:
+            eel.error_message_js(e)
+        eel.notify_message_js("Done.")
+    else:
+        eel.error_message_js("File is not exist")
+
+
+@eel.expose
+def sort_action_py():
+    cprint("[INFO] Sorting list", "green")
+    eel.notify_message_js("[INFO] Sorting list")
+    temp_list = []
+    temp_list_downloaded = []
+    for idx, video in enumerate(listOfLinks["data"]):
+        temp_list_downloaded.append(video) if(
+            video["status"] == "Downloaded") else temp_list.append(video)
+    listOfLinks["data"] = temp_list+temp_list_downloaded
+    with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
+        json.dump(listOfLinks, outfile)
+    eel.update_listOfLinks_js(listOfLinks["data"])
+    eel.notify_message_js("Done.")
+
+
+@eel.expose
+def clear_action_py():
+    listOfLinks["data"] = []
+    with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
+        json.dump(listOfLinks, outfile)
+    eel.update_listOfLinks_js(listOfLinks["data"])
+
+
+@eel.expose
+def setting_change_default_path_py(item):
+    global DEFAULT_PATH_STORAGE
+    global DEFAULT_PATH_DOWNLOADED
+    directory = functions.DialogSelectDirectory()
+    if item == "path_storage":
+        DEFAULT_PATH_STORAGE = directory
+        DEFAULT_PATH_DOWNLOADED = DEFAULT_PATH_DOWNLOADED[:len(
+            DEFAULT_PATH_DOWNLOADED)-len("/downloaded.txt")]
+    else:
+        DEFAULT_PATH_STORAGE = DEFAULT_PATH_STORAGE[:len(
+            DEFAULT_PATH_STORAGE)-1]
+        DEFAULT_PATH_DOWNLOADED = directory
+    print(DEFAULT_PATH_STORAGE, DEFAULT_PATH_DOWNLOADED)
+
+    data_config = {
+        "path_storage": DEFAULT_PATH_STORAGE,
+        "path_downloaded": DEFAULT_PATH_DOWNLOADED
+    }
+    with open(DEFAULT_PATH_CONFIG, 'w') as outfile:
+        json.dump(data_config, outfile)
+    eel.setup_config_js(data_config)
+    DEFAULT_PATH_STORAGE = data_config["path_storage"]+"/"
+    DEFAULT_PATH_DOWNLOADED = data_config["path_downloaded"] + \
+        "/downloaded.txt"
+
+
+@eel.expose
+def open_folder_storage_py():
+    cprint("[INFO] open_folder_storage_py")
+    if(sys.platform == "win32"):
+        os.startfile(DEFAULT_PATH_STORAGE)
+    elif(sys.platform == "darwin"):
+        os.system('open "%s"' % foldername)
+    elif(sys.platform == "linux"):
+        os.system('xdg-open "%s"' % foldername)
 
 
 @eel.expose                         # Expose this function to Javascript
@@ -187,3 +301,5 @@ eel.update_listOfLinks_js(listOfLinks["data"])
 eel.start('main.html')
 # if __name__ == "__main__":
 #    eel.start('main.html')
+
+# D:\github\letuan317\youtube_download_app\links.txt

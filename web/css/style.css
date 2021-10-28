@@ -10,7 +10,7 @@ body {
   display: flex;
   position: fixed;
   top: 0;
-  z-index: 100;
+  z-index: 99;
   width: 100%;
   height: 100px;
   background-color: #264653;
@@ -18,8 +18,7 @@ body {
 .menu-container .item {
   display: block;
   position: relative;
-  width: 100px;
-  margin-right: 10px;
+  margin-left: 25px;
 }
 .menu-container .item-right {
   float: right;
@@ -53,6 +52,9 @@ body {
   margin: 10px;
   background-color: #6b705c;
 }
+.list-links .item-selected {
+  border-left: 6px solid red;
+}
 .list-links .item .left {
   display: flex;
 }
@@ -70,14 +72,25 @@ body {
 .list-links .item .top {
   width: 100%;
 }
-.list-links .item .bottom {
-  display: flex;
-  align-items: center;
-}
 .list-links .item .top h5 {
   margin: 0 5px;
   margin-top: 7px;
 }
+.list-links .item .delete-bin {
+  display: block;
+}
+.list-links .item .delete-bin img {
+  width: 32px;
+  position: absolute;
+  right: 10px;
+  margin-top: 10px;
+  z-index: 3;
+}
+.list-links .item .bottom {
+  display: flex;
+  align-items: center;
+}
+
 .list-links .item .bottom p {
   width: 100px;
   margin: 5px;
@@ -101,4 +114,135 @@ body {
 .footer p {
   width: 100%;
   margin: 5px;
+}
+
+.addFileInput {
+  display: none;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  top: 100px;
+  padding: 10px;
+  background-color: #b7b7a4;
+  animation-name: example;
+  animation-duration: 2s;
+  z-index: 99;
+}
+.addFileInput input {
+  width: 70%;
+  padding: 5px;
+}
+.addFileInput img {
+  width: 24px;
+  height: 24px;
+  margin: auto 0px;
+  margin-left: 15px;
+}
+@keyframes example {
+  from {
+    top: 60px;
+  }
+  to {
+    top: 100px;
+  }
+}
+.setting-container {
+  display: none;
+  position: absolute;
+  align-items: center;
+  justify-content: center;
+  width: 90%;
+  height: 350px;
+  top: 120px;
+  right: 0;
+  border-radius: 10px 0 0 10px;
+  box-shadow: #2a9d8f 0px 19px 38px, rgba(0, 0, 0, 0.22) 0px 15px 12px;
+  background-color: #6b705c;
+  z-index: 100;
+  animation-name: setting-container-animation;
+  animation-duration: 2s;
+  transition-timing-function: ease-in-out;
+}
+@keyframes setting-container-animation {
+  from {
+    right: -80%;
+  }
+  to {
+    right: 0;
+  }
+}
+.setting-container .close-button {
+  position: absolute;
+  width: 32px;
+  top: 10px;
+  right: 10px;
+}
+.setting-container .setting-items {
+  margin: auto;
+  width: 90%;
+}
+.setting-container .setting-item {
+  display: block;
+  position: relative;
+  margin-bottom: 50px;
+}
+.setting-container .box-info {
+  display: inline-block;
+  width: 80%;
+  height: 20px;
+  padding: 5px;
+  padding-left: 10px;
+  border-radius: 5px;
+  background-color: white;
+  color: black;
+  margin-bottom: 5px;
+}
+.setting-container h3 {
+  margin-bottom: 5px;
+}
+.setting-container .note {
+  opacity: 0.5;
+  margin-left: 5%;
+  margin-top: 5px;
+}
+
+/* CSS */
+.button-64 {
+  align-items: center;
+  background-image: linear-gradient(144deg, #af40ff, #5b42f3 50%, #00ddeb);
+  border: 0;
+  border-radius: 8px;
+  box-shadow: rgba(151, 65, 252, 0.2) 0 15px 30px -5px;
+  box-sizing: border-box;
+  color: #ffffff;
+  display: flex;
+  font-family: Phantomsans, sans-serif;
+  justify-content: center;
+  line-height: 1em;
+  width: 200px;
+  padding: 3px;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button-64:active,
+.button-64:hover {
+  outline: 0;
+}
+
+.button-64 span {
+  background-color: rgb(5, 6, 45);
+  padding: 5px 5px;
+  border-radius: 6px;
+  width: 100%;
+  height: 100%;
+  transition: 300ms;
+}
+
+.button-64:hover span {
+  background: none;
 }

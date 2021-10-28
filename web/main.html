@@ -18,28 +18,68 @@
           alt="button"
           onclick="pasteLinkBtnAction()"
         />
-        <p>Paste Link</p>
+        <p>Paste</p>
       </div>
       <div class="item">
         <img
-          id="playBtnIcon"
-          src="img/icons8-play-48.png"
+          id="addFileBtnIcon"
+          src="img/icons8-add-file-48.png"
           alt="button"
-          onclick="playBtnAction()"
+          onclick="addFileBtnAction()"
         />
-        <p>Start</p>
+        <p>Add</p>
       </div>
       <div class="item">
         <img
+          id="downloadBtnIcon"
+          src="img/icons8-download-48.png"
+          alt="button"
+          onclick="downloadBtnAction()"
+        />
+        <p>Download</p>
+      </div>
+      <div class="item">
+        <img
+          id="pauseBtnIcon"
           src="img/icons8-pause-48.png"
           alt="button"
-          onclick="stopBtnAction()"
+          onclick="pauseBtnAction()"
+          style="opacity: 0.3"
         />
         <p>Pause</p>
       </div>
+      <div class="item">
+        <img
+          id="openFolderBtnIcon"
+          src="img/icons8-folder-48.png"
+          alt="button"
+          onclick="openFolderBtnAction()"
+        />
+        <p>Open</p>
+      </div>
+      <div class="item">
+        <img
+          id="sortBtnIcon"
+          src="img/icons8-sort-48.png"
+          alt="button"
+          onclick="sortBtnAction()"
+        />
+        <p>Sort</p>
+      </div>
+      <div class="item">
+        <img
+          id="clearBtnIcon"
+          src="img/icons8-clear-48.png"
+          alt="button"
+          onclick="clearBtnAction()"
+        />
+        <p>Clear</p>
+      </div>
+
       <div class="item-right">
         <img
-          src="img/icons8-settings-48.png"
+          id="settingBtnIcon"
+          src="img/icons8-setting-48.png"
           alt="button"
           onclick="settingBtnAction()"
         />
@@ -47,8 +87,43 @@
       </div>
     </div>
     <div id="list-links" class="list-links"></div>
+    <div id="setting-container" class="setting-container">
+      <img
+        class="close-button"
+        src="img/icons8-close-48.png"
+        alt="close"
+        onclick="settingCloseBtnAction()"
+      />
+      <div class="setting-items">
+        <div class="setting-item">
+          <h3>Default Path Storage</h3>
+          <div id="default_path_storage" class="box-info"></div>
+          <button
+            class="button-64"
+            role="button"
+            onclick="settingChangeDefaultPathStorage()"
+          >
+            <span class="text">Change Directory</span>
+          </button>
+        </div>
+        <div class="setting-item">
+          <h3>Default Path Downloaded</h3>
+          <div id="default_path_downloaded" class="box-info"></div>
+          <button
+            class="button-64"
+            role="button"
+            onclick="settingChangeDefaultPathDownload()"
+          >
+            <span class="text">Change Directory</span>
+          </button>
+          <p class="note">
+            Note: Path file name of a file where all downloads are recorded.
+          </p>
+        </div>
+      </div>
+    </div>
     <div class="footer">
-      <p id="footer">Status</p>
+      <p id="footer">@letuan317</p>
     </div>
   </body>
 </html>

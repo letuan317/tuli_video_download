@@ -1,10 +1,10 @@
 from __future__ import unicode_literals
 import youtube_dl
 from termcolor import cprint
-import time
 import sys
-import trace
 import threading
+from tkinter import *
+from tkinter import filedialog as fd
 
 
 class MyLogger(object):
@@ -23,9 +23,10 @@ def MyHook(d):
         print('Done downloading, now converting ...')
 
 
-def GetYoutubeInfo(yt_link, data_last_links):
+def GetYoutubeInfo(yt_link, listOfLinksDownloaded):
+    # check single youtube video
     yt_link = yt_link.split("&")[0]
-    if(yt_link not in data_last_links):
+    if(yt_link.split("watch?v=")[1] not in listOfLinksDownloaded):
         ydl_opts = {
             'logger': MyLogger(),
             'progress_hooks': [MyHook],
@@ -66,7 +67,7 @@ def ExtractInfoData(video_data):
         "id": video_data["id"],
         "channel": video_data["channel"].replace(" ", ""),
         "webpage_url": video_data["webpage_url"],
-        "title": video_data["title"][:80].replace("/", ""),
+        "title": video_data["id"]+' - '+video_data["title"][:50].replace("/", ""),
         "thumbnail": video_data["thumbnail"],
         "select_format": video_data["formats"][0]["format_id"],
         "formats": video_data["formats"],
@@ -111,3 +112,27 @@ class KThread(threading.Thread):
 
     def kill(self):
         self.killed = True
+
+
+def DialogSelectFile():
+    filetypes = (
+        ('text files', '*.txt'),
+        ('All files', '*.*')
+    )
+    root = Tk()
+    root.withdraw()
+    filename = fd.askopenfilename(title='Open a file',
+                                  initialdir='/',
+                                  filetypes=filetypes)
+    root.destroy()
+    print(filename)
+    return filename
+
+
+def DialogSelectDirectory():
+    root = Tk()
+    root.withdraw()
+    directory = fd.askdirectory()
+    root.destroy()
+    print(directory)
+    return directory
