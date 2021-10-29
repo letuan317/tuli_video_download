@@ -5,6 +5,7 @@ import sys
 import threading
 from tkinter import *
 from tkinter import filedialog as fd
+from tkinter.messagebox import askyesno
 
 
 class MyLogger(object):
@@ -24,9 +25,19 @@ def MyHook(d):
 
 
 def GetYoutubeInfo(yt_link, listOfLinksDownloaded):
+    if("youtube.com" in yt_link and "list=" not in yt_link):
+        # Single youtube video
+        temp_id = yt_link.split('watch?v=')[1].split("&")[0]
+        yt_link = yt_link.split("&")[0]
+    elif("ok.ru" in yt_link):
+        # ok.ru video
+        temp_id = yt_link.split('video/')[1]
+    else:
+        # Youtube playlist
+        None
+
     # check single youtube video
-    yt_link = yt_link.split("&")[0]
-    if(yt_link.split("watch?v=")[1] not in listOfLinksDownloaded):
+    if(temp_id not in listOfLinksDownloaded):
         ydl_opts = {
             'logger': MyLogger(),
             'progress_hooks': [MyHook],
@@ -45,10 +56,31 @@ def GetYoutubeInfo(yt_link, listOfLinksDownloaded):
                 video_data = result
             return True, video_data
         except Exception as e:
-            cprint(e, 'red')
-            return False, str(e).replace('\n', '')
+            cprint("[] GetYoutubeInfo: "+str(e).strip("\r\n"), 'red')
+            return False, str(e).strip("\r\n")
     else:
         return False, None
+
+
+def GetYoutubePlaylistInfo(yt_link):
+    ydl_opts = {
+        'logger': MyLogger(),
+        'progress_hooks': [MyHook],
+    }
+
+    ydl = youtube_dl.YoutubeDL()
+
+    try:
+        with ydl:
+            result = ydl.extract_info(yt_link,
+                                      download=False
+                                      )
+
+        list_videos_data = result['entries']
+        return True, list_videos_data
+    except Exception as e:
+        cprint("[] GetYoutubePlaylistInfo: "+str(e).strip("\r\n"), 'red')
+        return False, str(e).strip("\r\n")
 
 
 def ExtractInfoData(video_data):
@@ -63,6 +95,10 @@ def ExtractInfoData(video_data):
                     temp_list.append(frmat)
             video_data["formats"] = temp_list.copy()
             break
+
+    if(video_data.get("channel") == None):
+        video_data.setdefault("channel", video_data["uploader"])
+
     data = {
         "id": video_data["id"],
         "channel": video_data["channel"].replace(" ", ""),
@@ -78,8 +114,7 @@ def ExtractInfoData(video_data):
 
 
 class KThread(threading.Thread):
-    """A subclass of threading.Thread, with a kill()
-  method."""
+    """A subclass of threading.Thread, with a kill() method."""
 
     def __init__(self, *args, **keywords):
         threading.Thread.__init__(self, *args, **keywords)
@@ -92,8 +127,7 @@ class KThread(threading.Thread):
         threading.Thread.start(self)
 
     def __run(self):
-        """Hacked run function, which installs the
-    trace."""
+        """Hacked run function, which installs the trace."""
         sys.settrace(self.globaltrace)
         self.__run_backup()
         self.run = self.__run_backup
@@ -114,15 +148,19 @@ class KThread(threading.Thread):
         self.killed = True
 
 
+default_logo = './web/img/logo.ico'
+
+
 def DialogSelectFile():
     filetypes = (
         ('text files', '*.txt'),
         ('All files', '*.*')
     )
     root = Tk()
+    root.wm_iconbitmap(default_logo)
     root.withdraw()
     filename = fd.askopenfilename(title='Open a file',
-                                  initialdir='/',
+                                  # initialdir='/',
                                   filetypes=filetypes)
     root.destroy()
     print(filename)
@@ -131,8 +169,20 @@ def DialogSelectFile():
 
 def DialogSelectDirectory():
     root = Tk()
+    root.wm_iconbitmap(default_logo)
     root.withdraw()
     directory = fd.askdirectory()
     root.destroy()
     print(directory)
     return directory
+
+
+def DialogYesNo(title, message):
+    root = Tk()
+    root.wm_iconbitmap(default_logo)
+    root.geometry('0x0')
+    answer = askyesno(title=title,
+                      message=message)
+    if answer:
+        root.destroy()
+    return answer

@@ -80,6 +80,14 @@ eel.expose(download_process_js);
 function download_process_js(status) {
   document.getElementById("footer").innerText = status;
   document.getElementById("footer").style.color = "white";
+  if (status.includes("ETA")) {
+    document.getElementById("progress-bar").style.display = "block";
+    let percent = status.split("of")[0];
+    document.getElementById("download-progress-bar").style.width = percent;
+  } else {
+    document.getElementByC("progress-bar").style.display = "none";
+  }
+
   if (status === "Done") {
     show_unused_button();
   }
@@ -100,7 +108,9 @@ function update_listOfLinks_js(listOfLinks) {
     new_items +=
       ' class="delete-bin" onclick="deleteItemAction(\'' +
       listOfLinks[i].id +
-      '\')"><img src="img/icons8-delete-bin-48.png" alt="delete-bin"/></div><div class="left"><img src="' +
+      '\')"><img src="img/icons8-delete-bin-48.png" alt="delete-bin"/></div><div class="open-link" onclick="openLinkAction(\'' +
+      listOfLinks[i].webpage_url +
+      '\')"><img src="img/icons8-link-48.png" alt="open-link"/></div><div class="left"><img src="' +
       listOfLinks[i].thumbnail +
       '"alt="youtube"/></div><div class="right"><div class="top"><h5>' +
       listOfLinks[i].title +
@@ -205,12 +215,44 @@ function pasteLinkBtnAction() {
   if (IsPaste === true) {
     navigator.clipboard.readText().then(
       (cliptext) => {
-        eel.get_info_py(cliptext);
+        eel.paste_link_action_py(cliptext);
         IsPaste = false;
+        IsAdd = false;
+        IsDownload = false;
+        IsPause = false;
+        IsSort = false;
+        IsClear = false;
+        IsSetting = false;
+        document.getElementById("pasteLinkBtnIcon").style.opacity = "0.3";
+        document.getElementById("addFileBtnIcon").style.opacity = "0.3";
+        document.getElementById("downloadBtnIcon").style.opacity = "0.3";
+        document.getElementById("pauseBtnIcon").style.opacity = "0.3";
+        document.getElementById("sortBtnIcon").style.opacity = "0.3";
+        document.getElementById("clearBtnIcon").style.opacity = "0.3";
+        document.getElementById("settingBtnIcon").style.opacity = "0.3";
       },
       (err) => console.log(err)
     );
   }
+}
+
+eel.expose(paste_link_response_js);
+function paste_link_response_js() {
+  IsPaste = true;
+  IsAdd = true;
+  IsDownload = true;
+  IsPause = false;
+  IsSort = true;
+  IsClear = true;
+  IsSetting = true;
+  document.getElementById("pasteLinkBtnIcon").style.opacity = "1";
+  document.getElementById("addFileBtnIcon").style.opacity = "1";
+  document.getElementById("downloadBtnIcon").style.opacity = "1";
+  document.getElementById("pauseBtnIcon").style.opacity = "0.3";
+  document.getElementById("sortBtnIcon").style.opacity = "1";
+  document.getElementById("clearBtnIcon").style.opacity = "1";
+  document.getElementById("settingBtnIcon").style.opacity = "1";
+  console.log("Paste Link Done", IsDownload);
 }
 
 function addFileBtnAction() {
@@ -223,6 +265,7 @@ function addFileBtnAction() {
     IsSort = false;
     IsClear = false;
     document.getElementById("pasteLinkBtnIcon").style.opacity = "0.3";
+    document.getElementById("addFileBtnIcon").style.opacity = "0.3";
     document.getElementById("downloadBtnIcon").style.opacity = "0.3";
     document.getElementById("pauseBtnIcon").style.opacity = "0.3";
     document.getElementById("sortBtnIcon").style.opacity = "0.3";
@@ -236,6 +279,7 @@ function addFileBtnAction() {
     IsSort = true;
     IsClear = true;
     document.getElementById("pasteLinkBtnIcon").style.opacity = "1";
+    document.getElementById("addFileBtnIcon").style.opacity = "1";
     document.getElementById("downloadBtnIcon").style.opacity = "1";
     document.getElementById("pauseBtnIcon").style.opacity = "0.3";
     document.getElementById("sortBtnIcon").style.opacity = "1";
@@ -253,17 +297,19 @@ function downloadBtnAction() {
   // check skip downloaded, start download with default folder
   if (IsDownload == true) {
     IsPaste = false;
-    IsAdd = false;
-    IsDownload = false;
-    IsPause = true;
-    IsSort = false;
-    IsClear = false;
     document.getElementById("pasteLinkBtnIcon").style.opacity = "0.3";
+    IsAdd = false;
     document.getElementById("addFileBtnIcon").style.opacity = "0.3";
+    IsDownload = false;
     document.getElementById("downloadBtnIcon").style.opacity = "0.3";
+    IsPause = true;
     document.getElementById("pauseBtnIcon").style.opacity = "1";
+    IsSort = false;
     document.getElementById("sortBtnIcon").style.opacity = "0.3";
+    IsClear = false;
     document.getElementById("clearBtnIcon").style.opacity = "0.3";
+    IsSetting = false;
+    document.getElementById("settingBtnIcon").style.opacity = "0.3";
     eel.start_download_py();
     for (let i in globalListOfLinks) {
       document.getElementById(globalListOfLinks[i].id).disabled = true;
@@ -272,18 +318,20 @@ function downloadBtnAction() {
 }
 function pauseBtnAction() {
   if (IsPause == true) {
-    IsPaste = true;
-    IsAdd = true;
-    IsDownload = true;
-    IsPause = false;
-    IsSort = true;
-    IsClear = true;
     document.getElementById("pasteLinkBtnIcon").style.opacity = "1";
+    IsPaste = true;
     document.getElementById("addFileBtnIcon").style.opacity = "1";
+    IsAdd = true;
     document.getElementById("downloadBtnIcon").style.opacity = "1";
+    IsDownload = true;
     document.getElementById("pauseBtnIcon").style.opacity = "0.3";
+    IsPause = false;
     document.getElementById("sortBtnIcon").style.opacity = "1";
+    IsSort = true;
     document.getElementById("clearBtnIcon").style.opacity = "1";
+    IsClear = true;
+    document.getElementById("settingBtnIcon").style.opacity = "1";
+    IsSetting = true;
     eel.pause_download_py();
 
     for (let i in globalListOfLinks) {
@@ -353,6 +401,9 @@ function addFileInputCancelBtnAction() {
 function deleteItemAction(item_id) {
   console.log(item_id + " delete");
   eel.delete_item_action_py(item_id);
+}
+function openLinkAction(web_url) {
+  window.open(web_url);
 }
 function settingChangeDefaultPathStorage() {
   eel.setting_change_default_path_py("path_storage");

@@ -1,12 +1,26 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Youtube Downloader</title>
-    <link rel="icon" href="img/campfire.ico" />
+    <title>TuLi Video Download ver.1.0.0</title>
+    <link rel="icon" href="img/logo.ico" />
     <link rel="stylesheet" href="css/style.css" />
     <!-- Include eel.js - note this file doesn't exist in the 'web' directory -->
     <script type="text/javascript" src="/eel.js"></script>
     <script type="text/javascript" src="js/functions.js"></script>
+    <!-- Bootstrap -->
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css"
+    />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <!-- Google font Source Code Pro -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap"
+      rel="stylesheet"
+    />
   </head>
 
   <body>
@@ -122,7 +136,11 @@
         </div>
       </div>
     </div>
+
     <div class="footer">
+      <div id="progress-bar" class="meter">
+        <span id="download-progress-bar"></span>
+      </div>
       <p id="footer">@letuan317</p>
     </div>
   </body>
