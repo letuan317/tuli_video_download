@@ -28,6 +28,13 @@ if os.path.exists(DEFAULT_PATH_CONFIG):
     DEFAULT_PATH_STORAGE = data_config["path_storage"]+"/"
     DEFAULT_PATH_DOWNLOADED = data_config["path_downloaded"] + \
         "/downloaded.txt"
+else:
+    with open(DEFAULT_PATH_CONFIG, 'w') as outfile:
+        json.dump({
+            "path_storage": DEFAULT_PATH_STORAGE,
+            "path_downloaded": DEFAULT_PATH_DOWNLOADED
+        }, outfile
+        )
 
 # Send the setup to js
 eel.setup_config_js({
@@ -169,7 +176,7 @@ def playlist_videos_link(linkData):
                 cprint(message, "yellow")
 
     else:
-        message = "[!] playlist_videos_link: " + data_video
+        message = "[!] playlist_videos_link: " + linkData
         eel.error_message_js(message)
         cprint(message, "red")
 
