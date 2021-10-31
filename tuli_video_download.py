@@ -342,7 +342,11 @@ def sort_action_py():
 @eel.expose
 def clear_action_py():
     cprint("[INFO] Cleaning list", "green")
-    listOfLinks["data"] = []
+    temp_list = []
+    for idx, video in enumerate(listOfLinks["data"]):
+        if video["status"] != "Downloaded":
+            temp_list.append(video)
+    listOfLinks["data"] = temp_list.copy()
     with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
         json.dump(listOfLinks, outfile)
     eel.update_listOfLinks_js(listOfLinks["data"])
@@ -381,9 +385,9 @@ def open_folder_storage_py():
     if(sys.platform == "win32"):
         os.startfile(DEFAULT_PATH_STORAGE)
     elif(sys.platform == "darwin"):
-        os.system('open "%s"' % foldername)
+        os.system('open "%s"' % DEFAULT_PATH_STORAGE)
     elif(sys.platform == "linux"):
-        os.system('xdg-open "%s"' % foldername)
+        os.system('xdg-open "%s"' % DEFAULT_PATH_STORAGE)
 
 
 @eel.expose
