@@ -79,21 +79,25 @@ def get_info_py(linkData):
         eel.error_message_js(message)
         cprint(message, "red")
     else:
-        if("youtube.com" in linkData and "list=" not in linkData):
+        if("youtube.com" in linkData and not any(item in linkData for item in ["list=", "/videos"])):
+            cprint("getInfo: Single youtube video", "yellow")
             # Single youtube video
             single_video_link(linkData, linkData.split(
                 'watch?v=')[1].split("&")[0])
         elif("ok.ru" in linkData):
+            cprint("getInfo: ok.ru video", "yellow")
             # ok.ru video
             single_video_link(linkData, linkData.split('video/')[1])
         elif("youtube.com" in linkData and "list=" in linkData):
+            cprint("getInfo: Youtube playlist", "yellow")
             # Youtube playlist
             answer = functions.DialogYesNo(
                 "Comfirmation", linkData+" is a playlist. Do you want download them?")
             if answer:
                 playlist_videos_link(linkData)
         elif "youtube.com" in linkData and any(temp in linkData for temp in ["/channel/", "/c/"]):
-            # Youtube playlist
+            cprint("getInfo: Youtube channel", "yellow")
+            # Youtube channel
             answer = functions.DialogYesNo(
                 "Comfirmation", linkData+" is a channel. Do you want download all videos?")
             if answer:

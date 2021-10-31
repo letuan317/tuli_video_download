@@ -157,7 +157,7 @@ def DialogSelectFile():
         ('All files', '*.*')
     )
     root = Tk()
-    root.wm_iconbitmap(default_logo)
+    # root.wm_iconbitmap(default_logo)
     root.withdraw()
     filename = fd.askopenfilename(title='Open a file',
                                   # initialdir='/',
@@ -169,7 +169,7 @@ def DialogSelectFile():
 
 def DialogSelectDirectory():
     root = Tk()
-    root.wm_iconbitmap(default_logo)
+    # root.wm_iconbitmap(default_logo)
     root.withdraw()
     directory = fd.askdirectory()
     root.destroy()
@@ -179,7 +179,7 @@ def DialogSelectDirectory():
 
 def DialogYesNo(title, message):
     root = Tk()
-    root.wm_iconbitmap(default_logo)
+    # root.wm_iconbitmap(default_logo)
     root.geometry('0x0')
     answer = askyesno(title=title,
                       message=message)
