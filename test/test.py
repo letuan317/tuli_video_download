@@ -5,7 +5,7 @@ import json
 import yt_dlp
 from yt_dlp.postprocessor.common import PostProcessor
 
-yt_link = "https://www.youtube.com/watch?v=5fVovvWJ_Yo"
+yt_link = ""
 
 '''
 class MyLogger(object):
