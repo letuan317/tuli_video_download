@@ -8,6 +8,12 @@ import functions
 import json
 import os
 import subprocess
+
+
+import yt_dlp
+from yt_dlp.postprocessor.common import PostProcessor
+
+
 # Set web files folder and optionally specify which file types to check for eel.expose()
 #   *Default allowed_extensions are: ['.js', '.html', '.txt', '.htm', '.xhtml']
 eel.init('web', allowed_extensions=['.js', '.html'])
@@ -15,7 +21,7 @@ eel.init('web', allowed_extensions=['.js', '.html'])
 
 # init data
 DEFAULT_PATH_CONFIG = "./config.json"
-DEFAULT_PATH_STORAGE = "./videos/"
+DEFAULT_PATH_STORAGE = "./videos"
 DEFAULT_PATH_DOWNLOADED = "./downloaded.txt"
 DEFAULT_PATH_DATABASE = "./database.json"
 DEFAULT_PATH_VIDEO_ERROR_LOG = "./error_video.log"
@@ -48,7 +54,7 @@ if not os.path.exists(DEFAULT_PATH_STORAGE):
 
 
 cprint("[INFO] {} {}".format(DEFAULT_PATH_STORAGE,
-       DEFAULT_PATH_DOWNLOADED), 'green')
+                             DEFAULT_PATH_DOWNLOADED), 'green')
 
 global GLOBAL_THREAD
 # Load database
@@ -218,27 +224,52 @@ def delete_item_action_py(item_id):
     eel.notify_message_js("Deleted video id "+item_id)
 
 
+class MyLogger:
+    def debug(self, msg):
+            # For compatability with youtube-dl, both debug and info are passed into debug
+            # You can distinguish them by the prefix '[debug] '
+        if msg.startswith('[debug] '):
+            pass
+        else:
+            self.info(msg)
+
+    def info(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        print(msg)
+
+
+class MyCustomPP(PostProcessor):
+    def run(self, info):
+        self.to_screen('Doing stuff')
+        return [], info
+
+
 def my_hook(d):
     try:
-        if(d['status'] == 'finished'):
+        if (d['status'] == 'finished'):
             status = 'Finished'
             temp_check = False
             for idx, video in enumerate(listOfLinks["data"]):
-                if(video["status"] == ["Downloading", "Error"]):
+                if (video["status"] == ["Downloading", "Error"]):
                     video["status"] = "Wait"
                     temp_check = True
-            if(temp_check):
+            if (temp_check):
                 with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
                     json.dump(listOfLinks, outfile)
             eel.update_listOfLinks_js(listOfLinks["data"])
         else:
-            status = d['_percent_str']+" of "+d['_total_bytes_str'] + \
-                " at "+d['_speed_str']+" ETA "+d['_eta_str']
+            status = d['_percent_str'] + " of " + d['_total_bytes_str'] + \
+                " at " + d['_speed_str'] + " ETA " + d['_eta_str']
         eel.download_process_js(status)
     except Exception as e:
         cprint("[!] my_hook: Error downloading", 'red')
         print(e)
-        status = "Downloaded" if(
+        status = "Downloaded" if (
             "already been recorded in archive" in str(d)) else "Error"
         eel.download_process_js(status)
 
@@ -255,10 +286,16 @@ def run_downloaded_script():
                     'outtmpl': DEFAULT_PATH_STORAGE+video["channel"]+'-'+video['id']+'-'+video["title"]+".%(ext)s",
                     'noplaylist': True,
                     'progress_hooks': [my_hook],
+                    # extra for yt_dlp
+                    'logger': MyLogger(),
                 }
                 try:
-                    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                        ydl.download([video["webpage_url"]])
+
+                    """with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([video["webpage_url"]])"""
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.add_post_processor(MyCustomPP())
+                        ydl.extract_info(video["webpage_url"])
                     video["status"] = "Downloaded"
                     with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
                         json.dump(listOfLinks, outfile)

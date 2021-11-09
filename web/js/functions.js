@@ -89,7 +89,7 @@ function download_process_js(status) {
     document.getElementByC("progress-bar").style.display = "none";
   }
 
-  if (status == "DONE") {
+  if (status == "DONE" || status === "DONE") {
     show_unused_button();
   }
 }
