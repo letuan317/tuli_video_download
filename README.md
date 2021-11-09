@@ -46,4 +46,6 @@
 
 # youtube_download_app
 
-python -m eel tuli_video_download.py web --icon=wewb\img\logo.ico --onefile --name="TuLi Video Download" --noconsole
+`python -m eel tuli_video_download.py web --icon=web\img\logo.ico --onefile --name="TuLi Video Download" --noconsole`
+
+`python -m eel tuli_video_download.py web --icon=web\img\logo.ico --onefile --name="TuLi Video Download Console"`

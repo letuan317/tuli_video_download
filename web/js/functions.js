@@ -18,14 +18,14 @@ window.onresize = function () {
 // Expose this function to Python
 eel.expose(say_hello_js);
 function say_hello_js(x) {
-  console.log("Hello from " + x);
+  //console.log("Hello from " + x);
 }
 say_hello_js("Javascript World!");
 eel.say_hello_py("Javascript World!"); // Call a Python function
 
 eel.expose(setup_config_js);
 function setup_config_js(data_config) {
-  console.log(data_config);
+  //console.log(data_config);
   document.getElementById("default_path_storage").innerText =
     data_config.path_storage;
   document.getElementById("default_path_downloaded").innerText =
@@ -63,7 +63,7 @@ function hide_unused_button() {
 
 eel.expose(error_message_js);
 function error_message_js(message) {
-  console.log("error_message_js: " + message);
+  //console.log("error_message_js: " + message);
   document.getElementById("footer").innerText = message;
   document.getElementById("footer").style.color = "red";
   if (IsPaste == false) {
@@ -78,6 +78,7 @@ function notify_message_js(message) {
 
 eel.expose(download_process_js);
 function download_process_js(status) {
+  //console.log(status);
   document.getElementById("footer").innerText = status;
   document.getElementById("footer").style.color = "white";
   if (status.includes("ETA")) {
@@ -88,7 +89,7 @@ function download_process_js(status) {
     document.getElementByC("progress-bar").style.display = "none";
   }
 
-  if (status === "Done") {
+  if (status == "DONE") {
     show_unused_button();
   }
 }
@@ -252,11 +253,11 @@ function paste_link_response_js() {
   document.getElementById("sortBtnIcon").style.opacity = "1";
   document.getElementById("clearBtnIcon").style.opacity = "1";
   document.getElementById("settingBtnIcon").style.opacity = "1";
-  console.log("Paste Link Done", IsDownload);
+  //console.log("Paste Link Done", IsDownload);
 }
 
 function addFileBtnAction() {
-  console.log("add file clicked");
+  //console.log("add file clicked");
   if (IsAdd === true) {
     IsPaste = false;
     IsAdd = false;
@@ -386,7 +387,7 @@ function clearBtnAction() {
   }
 }
 function openFolderBtnAction() {
-  console.log("clicked");
+  //console.log("clicked");
   eel.open_folder_storage_py();
 }
 
@@ -399,7 +400,7 @@ function addFileInputCancelBtnAction() {
 }
 
 function deleteItemAction(item_id) {
-  console.log(item_id + " delete");
+  //console.log(item_id + " delete");
   eel.delete_item_action_py(item_id);
 }
 function openLinkAction(web_url) {

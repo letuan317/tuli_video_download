@@ -47,6 +47,9 @@ if not os.path.exists(DEFAULT_PATH_STORAGE):
     os.mkdir(DEFAULT_PATH_STORAGE)
 
 
+cprint("[INFO] {} {}".format(DEFAULT_PATH_STORAGE,
+       DEFAULT_PATH_DOWNLOADED), 'green')
+
 global GLOBAL_THREAD
 # Load database
 if os.path.exists(DEFAULT_PATH_DATABASE):
@@ -247,7 +250,7 @@ def run_downloaded_script():
                 video["status"] = "Downloading"
                 eel.update_listOfLinks_js(listOfLinks["data"])
                 ydl_opts = {
-                    'format': video["select_format"],
+                    'format': video["select_format"]+'+bestaudio',
                     'download_archive': DEFAULT_PATH_DOWNLOADED,
                     'outtmpl': DEFAULT_PATH_STORAGE+video["channel"]+'-'+video['id']+'-'+video["title"]+".%(ext)s",
                     'noplaylist': True,
@@ -259,6 +262,7 @@ def run_downloaded_script():
                     video["status"] = "Downloaded"
                     with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
                         json.dump(listOfLinks, outfile)
+                    eel.update_listOfLinks_js(listOfLinks["data"])
                 except Exception as e:
                     cprint("[!] run_downloaded_script: Error downloading", 'red')
                     print(e)
@@ -267,7 +271,7 @@ def run_downloaded_script():
                     video["status"] = "Error"
                     eel.update_listOfLinks_js(listOfLinks["data"])
                     continue
-    eel.download_process_js("Done")
+    eel.download_process_js("DONE")
 
 
 @eel.expose
@@ -295,7 +299,7 @@ def add_file_action_py():
         except Exception as e:
             cprint("[] add_file_action_py: "+str(e).strip("\n"))
             eel.error_message_js(e)
-        eel.notify_message_js("Done.")
+        eel.notify_message_js("DONE.")
     else:
         eel.error_message_js("File is not exist")
     cprint("[INFO] DONE - Add file action", "green")
@@ -336,7 +340,7 @@ def sort_action_py():
     with open(DEFAULT_PATH_DATABASE, 'w') as outfile:
         json.dump(listOfLinks, outfile)
     eel.update_listOfLinks_js(listOfLinks["data"])
-    eel.notify_message_js("Done.")
+    eel.notify_message_js("DONE.")
 
 
 @eel.expose
