@@ -43,8 +43,7 @@ def GetYoutubeInfo(yt_link, listOfLinksDownloaded):
             'progress_hooks': [MyHook],
         }
 
-        ydl = youtube_dl.YoutubeDL()
-
+        ydl = youtube_dl.YoutubeDL(ydl_opts)
         try:
             with ydl:
                 result = ydl.extract_info(yt_link,
@@ -68,7 +67,7 @@ def GetYoutubePlaylistInfo(yt_link):
         'progress_hooks': [MyHook],
     }
 
-    ydl = youtube_dl.YoutubeDL()
+    ydl = youtube_dl.YoutubeDL(ydl_opts)
 
     try:
         with ydl:
