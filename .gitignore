@@ -1,5 +1,7 @@
 videos/*
 
+.DS_Store
+
 *.json
 
 config.json

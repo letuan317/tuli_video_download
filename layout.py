@@ -1,9 +1,8 @@
 import sys
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from termcolor import cprint
-import requests
 from urllib import request
 
 program_name = "Youtube Video Download"
@@ -15,7 +14,7 @@ class UIApp(QWidget):
         self.window_width = 800
         self.window_height = 500
 
-        self.setGeometry(3500, 100, self.window_width, self.window_height)
+        self.setGeometry(0, 0, self.window_width, self.window_height)
         self.setMinimumSize(self.window_width, self.window_height)
         self.setWindowTitle(program_name)
 
@@ -34,6 +33,10 @@ class UIApp(QWidget):
         self.sizeVideoContainer = 100
 
         self.MenuContainer()
+        self.VideoContainer(x=800,
+                            y=110, url_image='https://live.staticflickr.com/65535/49251422908_591245c64a_c_d.jpg',
+                            title="12345678901234567890123456789012345678901234567890123456789012345678901234567890",
+                            channel="12345678901234567890", formats=["01", "02", "03", "04"], status="Wait")
 
         self.Footer("Ready")
 
@@ -85,17 +88,14 @@ class UIApp(QWidget):
         self.footerMessage.move(
             5, self.window_height-self.sizeFooterContainer+1)
 
-        self.VideoContainer(x=self.window_width,
-                            y=110, url_image='https://live.staticflickr.com/65535/49251422908_591245c64a_c_d.jpg',
-                            title="12345678901234567890123456789012345678901234567890123456789012345678901234567890",
-                            channel="12345678901234567890", formats=["01", "02", "03", "04"], status="Wait")
-
     def VideoContainer(self, x, y, url_image, title, channel, formats, status):
         print("test", x)
         videoBackground = QFrame(self)
         videoBackground.setStyleSheet(
             "QWidget { border-radius: 5px; background-color: %s}" % self.colorGreen)
-        videoBackground.setSizePolicy(QSizePolicy.Expanding, 100)
+        #videoBackground.setGeometry(0, y, 800, 100)
+        videoBackground.setMinimumSize(QSize(800, 100))
+        videoBackground.setSizePolicy(QSizePolicy.Fixed, 100)
         videoBackground.move(0, y)
 
         data = request.urlopen(url_image).read()
