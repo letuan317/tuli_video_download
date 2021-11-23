@@ -14,10 +14,13 @@ import json
 import os
 import sys
 import random
+import subprocess
 
 import functions
 
 program_name = "Youtube Video Download"
+
+# https://www.youtube.com/watch?v=gUd1yj_OhUY
 
 
 def MessageBox(self, title, text):
@@ -165,9 +168,9 @@ class UIApp(QWidget):
             self.videosContainer[i]["channel"].setGeometry(
                 175, 110*(i)+60, (self.window_width-180)*2/10, 50)
             self.videosContainer[i]["combo_box"].setGeometry(
-                175+(self.window_width-180)*2/10+5, 110*(i)+72, (self.window_width-180)*5/10, 25)
+                175+(self.window_width-180)*2/10+5, 110*(i)+72, (self.window_width-180)*6/10, 25)
             self.videosContainer[i]["status"].setGeometry(
-                175+(self.window_width-180)*7.5/10+10, 110*(i)+60, (self.window_width-180)*3/10-10, 50)
+                175+(self.window_width-180)*8/10+10, 110*(i)+60, (self.window_width-180)*1.9/10-10, 50)
 
     def VideoContainer(self, y, video_id, url_image, title, channel, formats, status):
         videoBackground = QFrame()
@@ -190,7 +193,7 @@ class UIApp(QWidget):
 
         combo_box = QComboBox()
         for ft in formats:
-            combo_box.addItem(", ".join((ft["format"], ft["ext"], ft["format_note"], str(
+            combo_box.addItem(", ".join((ft["format_id"], ft["format"], ft["ext"], ft["format_note"], str(
                 ft["fps"])+" fps", functions.ConvertVideoSize(ft["filesize"]))))
         combo_box.activated.connect(
             lambda: self.UpdateSelectFormat(video_id, combo_box.currentText()))
@@ -229,7 +232,6 @@ class UIApp(QWidget):
         text.setStyleSheet("QWidget { color: white}")
 
     def ActionPasteLink(self, event):
-        # TODO ActiocPasteLink: Paste a link from clipboard
         cprint('[INFO] ActionPasteLink', "green")
         text_clipborad = QApplication.clipboard().text()
         message = "Clipboard: " + text_clipborad
@@ -237,8 +239,12 @@ class UIApp(QWidget):
         self.GetInfo(text_clipborad)
 
     def ActionAddFile(self, event):
-        # TODO ActionAddFile: Read a file with youtube links and paste
-        print('ActionAddFile')
+        cprint('[INFO] ActionAddFile', "green")
+        fileName = QFileDialog.getOpenFileName(self, 'OpenFile')
+        fr = open(fileName, 'r')
+        for url_link in fr:
+            self.GetInfo(url_link.rstrip("\n"))
+        fr.close()
 
     def ActionDownload(self, event):
         # TODO ActionDownload: Downloading
@@ -250,15 +256,27 @@ class UIApp(QWidget):
 
     def ActionOpenFolder(self, event):
         # TODO ActionOpenFolder: Open video folder
-        print('ActionOpenFolder')
+        cprint('[INFO] ActionOpenFolder', "green")
+        #subprocess.Popen('explorer '+self.DEFAULT_PATH_STORAGE)
 
     def ActionSort(self, event):
-        # TODO ActionSort: Sort wait and downloaded
-        print('ActionSort')
+        cprint('[INFO] ActionAddFile', "green")
+        temp_list = list()
+        temp_list2 = list()
+        for idx, video in enumerate(self.listOfLinks["data"]):
+            if(video["status"] == "Downloaded"):
+                temp_list2.append(video)
+            else:
+                temp_list.append(video)
+        self.listOfLinks["data"] = temp_list + temp_list2
+        self.UpdateDatabase()
 
     def ActionClear(self, event):
-        # TODO ActionClear: Delete video downloaded
-        print('ActionClear')
+        cprint('[INFO] ActionAddFile', "green")
+        for idx, video in enumerate(self.listOfLinks["data"]):
+            if(video["status"] == "Downloaded"):
+                self.listOfLinks["data"].remove(video)
+        self.UpdateDatabase()
 
     def ActionSetting(self, event):
         # TODO ActionSetting: Open Setting Panel
@@ -458,8 +476,20 @@ class UIApp(QWidget):
                 with open(self.DEFAULT_PATH_VIDEO_ERROR_LOG, "a") as fa:
                     fa.write(url_link+"\n")
 
-    def UpdateSelectFormat(self, video_id, video_format):
-        print(video_id, video_format)
+    def UpdateSelectFormat(self, video_id, combo_current_text):
+        cprint("[INFO] UpdateSelectFormat", "green")
+        new_video_format = combo_current_text.split(",")[0]
+        for idx, video in enumerate(self.listOfLinks["data"]):
+            if video["id"] == video_id:
+                video["select_format"] = new_video_format
+                break
+        self.UpdateDatabase()
+
+    def UpdateDatabase(self):
+        with open(self.DEFAULT_PATH_DATABASE, 'w') as json_outfile:
+            json.dump(self.listOfLinks, json_outfile, indent=2)
+
+        self.FooterUpdate("[INFO] Updated database.js", "green")
 
 
 def Main():
