@@ -24,6 +24,7 @@ program_name = "Youtube Video Download"
 global_video_status = ["Wait", "Paused", "Downloading", "Downloaded", "Error"]
 
 global_log = essentials.Logger()
+global_log.info("Start new session")
 
 
 def MessageBox(self, title, text):
@@ -101,6 +102,7 @@ class ThreadClass(QThread):
         cprint("[+] Starting download ...", "yellow")
         if self.listOfLinks and self.DEFAULT_PATH_DOWNLOADED != None and self.DEFAULT_PATH_STORAGE != None:
             for idx, video in enumerate(self.listOfLinks):
+                is_completed = False
                 if(video["status"] in global_video_status) and (video["status"] != "Downloaded"):
                     video["status"] = "Downloading"
                     self.update_content_signal.emit(self.listOfLinks)
@@ -126,38 +128,46 @@ class ThreadClass(QThread):
                     else:
                         ydl_opts['format'] = video["select_format"] + \
                             '+bestaudio'
+
+                    message = "[*] Starting download video " + \
+                        video["title"]
+                    cprint(message, "yellow")
+                    global_log.info(message)
                     try:
-                        message = "[*] Try yt_dlp to start download video " + \
-                            video["title"]
-                        cprint(message, "yellow")
-                        global_log.info(message)
+                        global_log.info("Trying yt_dlp post_processor...")
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                             ydl.add_post_processor(MyCustomPP())
                             ydl.extract_info(video["webpage_url"])
+                        is_completed = True
+                    except Exception as e:
+                        cprint("Download 01: "+str(e), "red")
+                        global_log.error(e)
+                        try:
+                            global_log.info("Trying yt_dlp download...")
+                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                ydl.download(video["webpage_url"])
+                            is_completed = True
+                        except Exception as e:
+                            cprint("Download 02: "+str(e), "red")
+                            global_log.error(e)
+                            try:
+                                global_log.info("Trying youtube_dl...")
+                                with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                                    ydl.download(video["webpage_url"])
+                                is_completed = True
+                            except Exception as e:
+                                cprint("Download 03: "+str(e), "red")
+                                global_log.error(e)
+                    if is_completed:
                         video["status"] = "Downloaded"
                         self.update_content_signal.emit(self.listOfLinks)
                         self.update_database_signal.emit(self.listOfLinks)
-                    except Exception as e:
-                        cprint(e, "red")
-                        global_log.error(e)
-                        try:
-                            message = "[*] Try youtube_dl to start download video " + \
-                                video["title"]
-                            cprint(message, "yellow")
-                            global_log.info(message)
-                            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                                ydl.download([video["webpage_url"]])
-                            video["status"] = "Downloaded"
-                            self.update_content_signal.emit(self.listOfLinks)
-                            self.update_database_signal.emit(self.listOfLinks)
-                        except Exception as e:
-                            cprint(e, "red")
-                            global_log.error(e)
-                            video["status"] = "Error"
-                            self.update_content_signal.emit(self.listOfLinks)
-                            self.update_database_signal.emit(self.listOfLinks)
-                            # self.update_error_signal.emit(str(e))
-                            continue
+                    else:
+                        cprint("Video cant be downloaded", "red")
+                        video["status"] = "Error"
+                        self.update_content_signal.emit(self.listOfLinks)
+                        self.update_database_signal.emit(self.listOfLinks)
+                        # self.update_error_signal.emit(str(e))
         self.update_done_signal.emit(True)
 
     def stop(self):
@@ -434,11 +444,13 @@ class UIApp(QWidget):
 
     def ActionPasteLink(self, event):
         if not self.IsProcessing:
+            self.IsProcessing = True
             cprint('[INFO] ActionPasteLink', "green")
             text_clipborad = QApplication.clipboard().text()
             message = "Clipboard: " + text_clipborad
             self.FooterUpdate(message)
             self.GetInfo(text_clipborad)
+            self.IsProcessing = False
 
     def ActionAddFile(self, event):
         if not self.IsProcessing:
