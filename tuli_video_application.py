@@ -1,26 +1,29 @@
 from __future__ import unicode_literals
 import yt_dlp
 from yt_dlp.postprocessor.common import PostProcessor
+import youtube_dl
 
 from PyQt5 import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 
-
+import webbrowser
 from urllib import request
 from termcolor import cprint
 import json
 import os
 import sys
-import random
-import subprocess
+from functools import partial
 
 import functions
+import essentials
 
 program_name = "Youtube Video Download"
 
-# https://www.youtube.com/watch?v=gUd1yj_OhUY
+global_video_status = ["Wait", "Paused", "Downloading", "Downloaded", "Error"]
+
+global_log = essentials.Logger()
 
 
 def MessageBox(self, title, text):
@@ -35,6 +38,132 @@ def MessageBox(self, title, text):
         return True
     else:
         return False
+
+
+class MyLogger:
+    def debug(self, msg):
+        # For compatability with youtube-dl, both debug and info are passed into debug
+        # You can distinguish them by the prefix '[debug] '
+        if msg.startswith('[debug] '):
+            pass
+        else:
+            self.info(msg)
+
+    def info(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        print("MyLogger: " + msg)
+
+
+class MyCustomPP(PostProcessor):
+    def run(self, info):
+        self.to_screen('Doing stuff')
+        return [], info
+
+
+class ThreadClass(QThread):
+    any_signal = pyqtSignal(int)
+    update_content_signal = pyqtSignal(list)
+    update_database_signal = pyqtSignal(list)
+    update_process_signal = pyqtSignal(str)
+    #update_error_signal = pyqtSignal(str)
+    update_done_signal = pyqtSignal(bool)
+
+    def __init__(self, parent=None, force=False, listOfLinks=[], DEFAULT_PATH_DOWNLOADED=None, DEFAULT_PATH_STORAGE=None):
+        super(ThreadClass, self).__init__(parent)
+        self.is_running = True
+        self.force = force
+        self.listOfLinks = listOfLinks
+        self.DEFAULT_PATH_DOWNLOADED = DEFAULT_PATH_DOWNLOADED
+        self.DEFAULT_PATH_STORAGE = DEFAULT_PATH_STORAGE
+
+    def HookGetStatus(self, d):
+        try:
+            if (d['status'] == 'finished'):
+                status = 'Finished'
+            else:
+                status = d['_percent_str'] + " of " + d['_total_bytes_str'] + \
+                    " at " + d['_speed_str'] + " ETA " + d['_eta_str']
+            self.update_process_signal.emit(status)
+        except Exception as e:
+            cprint("[!] my_hook: Error downloading", 'red')
+            print(e)
+            status = "Downloaded" if (
+                "already been recorded in archive" in str(d)) else "Error"
+            self.update_process_signal.emit(status)
+
+    def run(self):
+        self.update_done_signal.emit(False)
+        cprint("[+] Starting download ...", "yellow")
+        if self.listOfLinks and self.DEFAULT_PATH_DOWNLOADED != None and self.DEFAULT_PATH_STORAGE != None:
+            for idx, video in enumerate(self.listOfLinks):
+                if(video["status"] in global_video_status) and (video["status"] != "Downloaded"):
+                    video["status"] = "Downloading"
+                    self.update_content_signal.emit(self.listOfLinks)
+                    output_file = self.DEFAULT_PATH_STORAGE + '/' + \
+                        video["channel"]+'-'+video['id'] + \
+                        '-'+video["title"]+".%(ext)s"
+                    ydl_opts = {
+                        'outtmpl': output_file,
+                        'noplaylist': True,
+                        'progress_hooks': [self.HookGetStatus],
+                        'logger': MyLogger(),
+                    }
+                    if not self.force:
+                        ydl_opts['download_archive'] = self.DEFAULT_PATH_DOWNLOADED
+                    if video["select_format"] == "bestaudio":
+                        ydl_opts['format'] = video["select_format"]
+                        ydl_opts['postprocessors'] = [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '192',
+                        }]
+
+                    else:
+                        ydl_opts['format'] = video["select_format"] + \
+                            '+bestaudio'
+                    try:
+                        message = "[*] Try yt_dlp to start download video " + \
+                            video["title"]
+                        cprint(message, "yellow")
+                        global_log.info(message)
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            ydl.add_post_processor(MyCustomPP())
+                            ydl.extract_info(video["webpage_url"])
+                        video["status"] = "Downloaded"
+                        self.update_content_signal.emit(self.listOfLinks)
+                        self.update_database_signal.emit(self.listOfLinks)
+                    except Exception as e:
+                        cprint(e, "red")
+                        global_log.error(e)
+                        try:
+                            message = "[*] Try youtube_dl to start download video " + \
+                                video["title"]
+                            cprint(message, "yellow")
+                            global_log.info(message)
+                            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                                ydl.download([video["webpage_url"]])
+                            video["status"] = "Downloaded"
+                            self.update_content_signal.emit(self.listOfLinks)
+                            self.update_database_signal.emit(self.listOfLinks)
+                        except Exception as e:
+                            cprint(e, "red")
+                            global_log.error(e)
+                            video["status"] = "Error"
+                            self.update_content_signal.emit(self.listOfLinks)
+                            self.update_database_signal.emit(self.listOfLinks)
+                            # self.update_error_signal.emit(str(e))
+                            continue
+        self.update_done_signal.emit(True)
+
+    def stop(self):
+        self.is_running = False
+        cprint("[-] Stopping download ...", "yellow")
+        self.terminate()
 
 
 class UIApp(QWidget):
@@ -55,6 +184,8 @@ class UIApp(QWidget):
         self.colorRed = "#e76f51"
 
         self.InitData()
+        self.IsProcessing = False
+        self.IsProcessingSetting = False
 
         self.sizeMenuContainer = 100
         self.sizeMenuIcon = 48
@@ -76,38 +207,84 @@ class UIApp(QWidget):
         self.MenuContainer()
         self.ContentContainer()
         self.Footer("Ready")
+        self.SettingsPanel()
+        self.settingsPanelWidget.setHidden(True)
 
         self.ReloadWindows()
 
         self.temp_select_format = None
+
+    def AddMenuButton(self, name, text_adjust, path_img, x, y, action):
+        btnIconAddfile = QLabel(self)
+        btnIconAddfile.setPixmap(QPixmap(path_img))
+        btnIconAddfile.move(x, y)
+        btnIconAddfile.mousePressEvent = action
+        text = QLabel(name, self)
+        text.move(x+text_adjust, y + self.sizeMenuIcon + 5)
+        text.setStyleSheet("QWidget {color: white}")
+        return btnIconAddfile
+
+    def MenuShowButton(self, is_all_icons=False):
+        self.btnPaste.setPixmap(QPixmap('img/icons8-plus-48.png'))
+        self.btnAddFile.setPixmap(QPixmap('img/icons8-add-file-48.png'))
+        self.btnDownload.setPixmap(QPixmap('img/icons8-download-48.png'))
+        self.btnPause.setPixmap(QPixmap('img/icons8-pause-hide-48.png'))
+        self.btnOpenFolder.setPixmap(QPixmap('img/icons8-folder-48.png'))
+        self.btnSort.setPixmap(QPixmap('img/icons8-sort-48.png'))
+        self.btnClear.setPixmap(QPixmap('img/icons8-clear-48.png'))
+        self.btnSetting.setPixmap(QPixmap('img/icons8-setting-48.png'))
+        self.forceDownload.setHidden(False)
+
+    def MenuHideButton(self, is_all_icons=False):
+        self.btnPaste.setPixmap(QPixmap('img/icons8-plus-hide-48.png'))
+        # self.btnPaste.move(self.posXMenuIcon, self.posYMenuIcon)
+        self.btnAddFile.setPixmap(QPixmap('img/icons8-add-file-hide-48.png'))
+        self.btnDownload.setPixmap(QPixmap('img/icons8-download-hide-48.png'))
+        if is_all_icons:
+            self.btnPause.setPixmap(QPixmap('img/icons8-pause-hide-48.png'))
+        else:
+            self.btnPause.setPixmap(QPixmap('img/icons8-pause-48.png'))
+        self.btnSetting.setPixmap(QPixmap('img/icons8-setting-hide-48.png'))
+        self.btnOpenFolder.setPixmap(QPixmap('img/icons8-folder-48.png'))
+        self.btnSort.setPixmap(QPixmap('img/icons8-sort-hide-48.png'))
+        self.btnClear.setPixmap(QPixmap('img/icons8-clear-hide-48.png'))
+        self.forceDownload.setHidden(True)
 
     def MenuContainer(self):
         margin = 20
 
         self.menuBackground = QFrame(self)
         self.menuBackground.setStyleSheet(
-            "QWidget { background-color: %s}" % self.colorDarkGreen)
-        self.AddMenuButton("Paste", 10, 'img/icons8-plus-48.png',
-                           self.posXMenuIcon, self.posYMenuIcon, self.ActionPasteLink)
-        self.AddMenuButton("Add", 13, 'img/icons8-add-file-48.png', self.posXMenuIcon +
-                           self.sizeMenuIcon+margin, self.posYMenuIcon, self.ActionAddFile)
-        self.AddMenuButton("Download", 0, 'img/icons8-download-48.png', self.posXMenuIcon +
-                           2*(self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionDownload)
-        self.AddMenuButton("Pause", 8, 'img/icons8-pause-48.png', self.posXMenuIcon +
-                           3*(self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionPause)
-        self.AddMenuButton("Open", 8, 'img/icons8-folder-48.png', self.posXMenuIcon+4*(
+            "QWidget {background-color:%s}" % self.colorDarkGreen)
+        self.btnPaste = self.AddMenuButton("Paste", 10, 'img/icons8-plus-48.png',
+                                           self.posXMenuIcon, self.posYMenuIcon, self.ActionPasteLink)
+        self.btnAddFile = self.AddMenuButton("Add", 13, 'img/icons8-add-file-48.png', self.posXMenuIcon +
+                                             self.sizeMenuIcon+margin, self.posYMenuIcon, self.ActionAddFile)
+        self.btnDownload = self.AddMenuButton("Download", 0, 'img/icons8-download-48.png', self.posXMenuIcon +
+                                              2*(self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionDownload)
+        self.btnPause = self.AddMenuButton("Pause", 8, 'img/icons8-pause-hide-48.png', self.posXMenuIcon +
+                                           3*(self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionPause)
+        self.btnOpenFolder = self.AddMenuButton("Open", 8, 'img/icons8-folder-48.png', self.posXMenuIcon+4*(
             self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionOpenFolder)
-        self.AddMenuButton("Sort", 12, 'img/icons8-sort-48.png', self.posXMenuIcon +
-                           5*(self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionSort)
-        self.AddMenuButton("Clear", 10, 'img/icons8-clear-48.png', self.posXMenuIcon +
-                           6*(self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionClear)
+        self.btnSort = self.AddMenuButton("Sort", 12, 'img/icons8-sort-48.png', self.posXMenuIcon +
+                                          5*(self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionSort)
+        self.btnClear = self.AddMenuButton("Clear", 10, 'img/icons8-clear-48.png', self.posXMenuIcon +
+                                           6*(self.sizeMenuIcon+margin), self.posYMenuIcon, self.ActionClear)
 
         self.btnSetting = QLabel(self)
         self.btnSetting.setPixmap(QPixmap("img/icons8-setting-48.png"))
         self.btnSetting.mousePressEvent = self.ActionSetting
 
         self.textSetting = QLabel("Settings", self)
-        self.textSetting.setStyleSheet("QWidget { color: white}")
+        self.textSetting.setStyleSheet("QWidget {color: white}")
+
+        self.forceDownload = QCheckBox("Force Download", self)
+        self.forceDownload.setChecked(False)
+        self.forceDownload.stateChanged.connect(
+            lambda: self.ContentContainer())
+        self.forceDownload.move(self.posXMenuIcon + 8 *
+                                (self.sizeMenuIcon+margin), self.posYMenuIcon)
+        self.forceDownload.setStyleSheet("QWidget {color: white}")
 
     def ReloadWindows(self):
         self.timer = QTimer()
@@ -120,10 +297,11 @@ class UIApp(QWidget):
         self.scroll_vbox = QVBoxLayout()
 
         for idx, video in enumerate(self.listOfLinks["data"]):
-            videoBackground, thumbnail, title, channel, combo_box, status = self.VideoContainer(
-                y=110*(idx), video_id=video["id"], url_image=video["thumbnail"], title=video["title"], channel=video["channel"], formats=video["formats"], status=video["status"])
+            videoBackground, thumbnail, title, channel, combo_box, status, btn_link, btn_delete = self.VideoContainer(
+                y=110*(idx), video_id=video["id"], url_image=video["thumbnail"], title=video["title"], channel=video["channel"], formats=video["formats"],
+                status=video["status"], url_link=video["webpage_url"])
             self.videosContainer.append({"videoBackground": videoBackground, "thumbnail": thumbnail,
-                                        "title": title, "channel": channel, "combo_box": combo_box, "status": status})
+                                        "title": title, "channel": channel, "combo_box": combo_box, "status": status, "btn_link": btn_link, "btn_delete": btn_delete})
 
             self.scroll_vbox.addWidget(videoBackground)
             self.scroll_vbox.addWidget(thumbnail)
@@ -131,6 +309,8 @@ class UIApp(QWidget):
             self.scroll_vbox.addWidget(channel)
             self.scroll_vbox.addWidget(combo_box)
             self.scroll_vbox.addWidget(status)
+            self.scroll_vbox.addWidget(btn_link)
+            self.scroll_vbox.addWidget(btn_delete)
 
         self.scroll_widget.setLayout(self.scroll_vbox)
         self.scroll.setWidget(self.scroll_widget)
@@ -153,8 +333,14 @@ class UIApp(QWidget):
 
         self.footerBackground.setGeometry(
             0, self.window_height-self.sizeFooterContainer, self.window_width, self.sizeFooterContainer)
-        self.footerMessage.setGeometry(
-            5, self.window_height-self.sizeFooterContainer, self.window_width, self.sizeFooterContainer)
+        if self.IsProcessing:
+            self.footerMessage.setGeometry(
+                310, self.window_height-self.sizeFooterContainer, self.window_width-310, self.sizeFooterContainer)
+        else:
+            self.footerMessage.setGeometry(
+                5, self.window_height-self.sizeFooterContainer, self.window_width, self.sizeFooterContainer)
+        self.footerProgress.setGeometry(
+            5, self.window_height-self.sizeFooterContainer+round(self.sizeFooterContainer/4), 300, round(self.sizeFooterContainer/2))
 
         self.UpdateScrollContent()
 
@@ -164,18 +350,22 @@ class UIApp(QWidget):
                 5, 110*(i)+10, self.window_width-30, 100)
             self.videosContainer[i]["thumbnail"].move(10, 110*(i)+15)
             self.videosContainer[i]["title"].setGeometry(
-                175, 110*(i)+10, self.window_width-250, 50)
+                175, 110*(i)+10, self.window_width-280, 50)
             self.videosContainer[i]["channel"].setGeometry(
-                175, 110*(i)+60, (self.window_width-180)*2/10, 50)
+                175, 110*(i)+60, round((self.window_width-180)*2/10), 50)
             self.videosContainer[i]["combo_box"].setGeometry(
-                175+(self.window_width-180)*2/10+5, 110*(i)+72, (self.window_width-180)*6/10, 25)
+                175+round((self.window_width-180)*2/10)+5, 110*(i)+72, round((self.window_width-180)*6/10), 25)
             self.videosContainer[i]["status"].setGeometry(
-                175+(self.window_width-180)*8/10+10, 110*(i)+60, (self.window_width-180)*1.9/10-10, 50)
+                175+round((self.window_width-180)*8/10)+10, 110*(i)+60, round((self.window_width-180)*1.9/10)-10, 50)
+            self.videosContainer[i]["btn_link"].move(
+                self.window_width - 90, 110*(i)+15)
+            self.videosContainer[i]["btn_delete"].move(
+                self.window_width - 60, 110*(i)+15)
 
-    def VideoContainer(self, y, video_id, url_image, title, channel, formats, status):
+    def VideoContainer(self, y, video_id, url_image, title, channel, formats, status, url_link):
         videoBackground = QFrame()
         videoBackground.setStyleSheet(
-            "QWidget { border-radius: 5px; background-color: %s}" % self.colorGreenArmy)
+            "QWidget {border-radius: 5px; background-color:%s}" % self.colorGreenArmy)
 
         data = request.urlopen(url_image).read()
         pixmap = QPixmap()
@@ -186,14 +376,14 @@ class UIApp(QWidget):
 
         title = QLabel(title)
         title.setStyleSheet(
-            "QWidget { color: white; font-size: 15px; font-weight: bold}")
+            "QWidget {color: white; font-size: 15px; font-weight: bold}")
 
         channel = QLabel(channel)
-        channel.setStyleSheet("QWidget { color: white;}")
+        channel.setStyleSheet("QWidget {color: white;}")
 
         combo_box = QComboBox()
         for ft in formats:
-            combo_box.addItem(", ".join((ft["format_id"], ft["format"], ft["ext"], ft["format_note"], str(
+            combo_box.addItem("bestaudio") if ft == "bestaudio" else combo_box.addItem(", ".join((ft["format_id"], ft["format"], ft["ext"], ft["format_note"], str(
                 ft["fps"])+" fps", functions.ConvertVideoSize(ft["filesize"]))))
         combo_box.activated.connect(
             lambda: self.UpdateSelectFormat(video_id, combo_box.currentText()))
@@ -204,13 +394,33 @@ class UIApp(QWidget):
             colorStatus = self.colorYellow
         elif status == "Downloaded":
             colorStatus = self.colorGreen
+            if self.forceDownload.isChecked() == False:
+                combo_box.setEnabled(False)
         else:
             print(status)
             colorStatus = self.colorRed
         status = QLabel(status)
         status.setStyleSheet(
-            "QWidget { color: "+colorStatus+"; font-size: 15px; font-weight: bold;}")
+            "QWidget {color: "+colorStatus+"; font-size: 15px; font-weight: bold;}")
 
+        btn_link = QLabel()
+        pixmap = QPixmap("img/icons8-link-48.png")
+        pixmap = pixmap.scaled(24, 24, Qt.KeepAspectRatio)
+        btn_link.setPixmap(pixmap)
+        btn_link.mousePressEvent = partial(
+            self.OpenVideoUrlLink, url_link=url_link)
+
+        btn_delete = QLabel()
+        pixmap = QPixmap("img/icons8-delete-bin-48.png")
+        pixmap = pixmap.scaled(24, 24, Qt.KeepAspectRatio)
+        btn_delete.setPixmap(QPixmap(pixmap))
+        btn_delete.mousePressEvent = partial(
+            self.DeleteVideoInList, video_id=video_id)
+
+        if self.IsProcessing:
+            combo_box.setEnabled(False)
+            btn_link.setHidden(True)
+            btn_delete.setHidden(True)
         '''
         videoBackground.setGeometry(5, y+10, 800, 100)
         thumbnail.move(10, y+5)
@@ -220,87 +430,217 @@ class UIApp(QWidget):
         status.setGeometry(175, y+60, 100, 50)
         '''
 
-        return videoBackground, thumbnail, title, channel, combo_box, status
-
-    def AddMenuButton(self, name, text_adjust, path_img, x, y, action):
-        btnIconAddfile = QLabel(self)
-        btnIconAddfile.setPixmap(QPixmap(path_img))
-        btnIconAddfile.move(x, y)
-        btnIconAddfile.mousePressEvent = action
-        text = QLabel(name, self)
-        text.move(x+text_adjust, y + self.sizeMenuIcon + 5)
-        text.setStyleSheet("QWidget { color: white}")
+        return videoBackground, thumbnail, title, channel, combo_box, status, btn_link, btn_delete
 
     def ActionPasteLink(self, event):
-        cprint('[INFO] ActionPasteLink', "green")
-        text_clipborad = QApplication.clipboard().text()
-        message = "Clipboard: " + text_clipborad
-        self.FooterUpdate(message)
-        self.GetInfo(text_clipborad)
+        if not self.IsProcessing:
+            cprint('[INFO] ActionPasteLink', "green")
+            text_clipborad = QApplication.clipboard().text()
+            message = "Clipboard: " + text_clipborad
+            self.FooterUpdate(message)
+            self.GetInfo(text_clipborad)
 
     def ActionAddFile(self, event):
-        cprint('[INFO] ActionAddFile', "green")
-        fileName = QFileDialog.getOpenFileName(self, 'OpenFile')
-        fr = open(fileName, 'r')
-        for url_link in fr:
-            self.GetInfo(url_link.rstrip("\n"))
-        fr.close()
+        if not self.IsProcessing:
+            cprint('[INFO] ActionAddFile', "green")
+            fileName = QFileDialog.getOpenFileName(self, 'OpenFile')
+            fr = open(fileName, 'r')
+            for url_link in fr:
+                self.GetInfo(url_link.rstrip("\n"))
+            fr.close()
 
     def ActionDownload(self, event):
-        # TODO ActionDownload: Downloading
-        print('ActionDownload')
+        if not self.IsProcessing:
+            cprint('[INFO] ActionDownload', "green")
+            self.FooterUpdate("[INFO] Starting download", "green")
+            self.IsProcessing = True
+            self.MenuHideButton()
+            # self.GLOBAL_THREAD = functions.KThread(target=self.RunDownloadedScript)
+            # self.GLOBAL_THREAD.start()
+            self.thread = ThreadClass(
+                parent=None, force=self.forceDownload.isChecked(), listOfLinks=self.listOfLinks["data"], DEFAULT_PATH_DOWNLOADED=self.DEFAULT_PATH_DOWNLOADED, DEFAULT_PATH_STORAGE=self.DEFAULT_PATH_STORAGE)
+            self.thread.start()
+            self.thread.update_content_signal.connect(
+                self.CallThreadUpdateContent)
+            self.thread.update_database_signal.connect(
+                self.CallThreadUpdateDatabase)
+            self.thread.update_process_signal.connect(
+                self.CallThreadUpdateProcess)
+            self.thread.update_done_signal.connect(self.CallThreadUpdateDone)
+            # self.thread.update_error_signal.connect(self.CallThreadUpdateError)
+
+    def CallThreadUpdateContent(self, temp_list):
+        self.listOfLinks["data"] = temp_list
+        self.ContentContainer()
+
+    def CallThreadUpdateDatabase(self, temp_list):
+        self.listOfLinks["data"] = temp_list
+        self.UpdateDatabase()
+
+    def CallThreadUpdateProcess(self, temp_str):
+        self.FooterUpdate(temp_str)
+
+    def CallThreadUpdateDone(self, is_done):
+        if is_done:
+            self.IsProcessing = False
+            self.MenuShowButton()
+            self.ContentContainer()
+            self.FooterUpdate("Done", "green")
+
+    # def CallThreadUpdateError(self, temp_str):
+        # global_log.error(temp_str)
 
     def ActionPause(self, event):
-        # TODO ActionPause: Pause to download
-        print('ActionPause')
+        if self.IsProcessing and not self.IsProcessingSetting:
+            cprint('[INFO] ActionPause', "green")
+            self.thread.stop()
+            for idx, video in enumerate(self.listOfLinks["data"]):
+                if video["status"] == "Downloading":
+                    video["status"] = "Paused"
+                    self.ContentContainer()
+                    break
+            self.IsProcessing = False
+            self.MenuShowButton()
+            self.ContentContainer()
+            self.FooterUpdate("Paused", "yellow")
 
     def ActionOpenFolder(self, event):
-        # TODO ActionOpenFolder: Open video folder
         cprint('[INFO] ActionOpenFolder', "green")
-        #subprocess.Popen('explorer '+self.DEFAULT_PATH_STORAGE)
+        self.FooterUpdate("Opening the video folder", "green")
+        if(sys.platform == "win32"):
+            os.startfile(self.DEFAULT_PATH_STORAGE)
+        elif(sys.platform == "darwin"):
+            os.system('open "%s"' % self.DEFAULT_PATH_STORAGE)
+        elif(sys.platform == "linux"):
+            os.system('xdg-open "%s"' % self.DEFAULT_PATH_STORAGE)
 
     def ActionSort(self, event):
-        cprint('[INFO] ActionAddFile', "green")
-        temp_list = list()
-        temp_list2 = list()
-        for idx, video in enumerate(self.listOfLinks["data"]):
-            if(video["status"] == "Downloaded"):
-                temp_list2.append(video)
-            else:
-                temp_list.append(video)
-        self.listOfLinks["data"] = temp_list + temp_list2
-        self.UpdateDatabase()
+        if not self.IsProcessing:
+            cprint('[INFO] ActionAddFile', "green")
+            temp_list = list()
+            temp_list2 = list()
+            for idx, video in enumerate(self.listOfLinks["data"]):
+                if(video["status"] == "Downloaded"):
+                    temp_list2.append(video)
+                else:
+                    temp_list.append(video)
+            self.listOfLinks["data"] = temp_list + temp_list2
+            self.UpdateDatabase()
+            self.ContentContainer()
 
     def ActionClear(self, event):
-        cprint('[INFO] ActionAddFile', "green")
-        for idx, video in enumerate(self.listOfLinks["data"]):
-            if(video["status"] == "Downloaded"):
-                self.listOfLinks["data"].remove(video)
-        self.UpdateDatabase()
+        if not self.IsProcessing:
+            cprint('[INFO] ActionAddFile', "green")
+            for idx, video in enumerate(self.listOfLinks["data"]):
+                if(video["status"] == "Downloaded"):
+                    self.listOfLinks["data"].remove(video)
+            self.UpdateDatabase()
+            self.ContentContainer()
 
     def ActionSetting(self, event):
-        # TODO ActionSetting: Open Setting Panel
-        print('ActionSetting')
+        if not self.IsProcessing:
+            cprint('[INFO] ActionSetting', "green")
+            self.IsProcessing = True
+            self.IsProcessingSetting = True
+            self.MenuHideButton(is_all_icons=True)
+            self.scroll.setHidden(True)
+            self.settingsPanelWidget.setHidden(False)
+
+    def SettingsPanel(self):
+        self.settingsPanelWidget = QWidget(self)
+        self.settingsPanelWidget.setFont(QFont("Arial", 12))
+
+        self.settingUsername = QLineEdit(self.DEFAULT_USERNAME)
+        self.settingPassword = QLineEdit(self.DEFAULT_PASSWORD)
+        self.settingPassword.setEchoMode(QLineEdit.Password)
+        self.settingPathStorage = QLineEdit(self.DEFAULT_PATH_STORAGE)
+        self.settingPathStorage.setMaximumWidth(500)
+        self.settingPathStorage.setReadOnly(True)
+        b3 = QPushButton("Open")
+        b3.setStyleSheet("QWidget {background-color:white}")
+        b3.setMaximumWidth(100)
+        b3.clicked.connect(self.SelectStoragePath)
+        self.settingPathDownloaded = QLineEdit(self.DEFAULT_PATH_DOWNLOADED)
+        self.settingPathDownloaded.setMaximumWidth(500)
+        self.settingPathDownloaded.setReadOnly(True)
+        b4 = QPushButton("Open")
+        b4.setStyleSheet("QWidget {background-color:white;}")
+        b4.setMaximumWidth(100)
+        b4.clicked.connect(self.SelectDownloadArchivePath)
+        b5 = QPushButton("Save")
+        b5.setStyleSheet("QWidget {background-color:green;color:white}")
+        b5.setMaximumWidth(100)
+        b5.clicked.connect(self.SaveSettings)
+        b6 = QPushButton("Cancel")
+        b6.setStyleSheet("QWidget {background-color:red;color:white}")
+        b6.setMaximumWidth(100)
+        b6.clicked.connect(self.CancelSetting)
+
+        flo = QFormLayout()
+        flo.addRow("Username", self.settingUsername)
+        flo.addRow("Password", self.settingPassword)
+        vbox1 = QHBoxLayout()
+        vbox1.addWidget(self.settingPathStorage)
+        vbox1.addWidget(b3)
+        flo.addRow("Videos Storage ", vbox1)
+        vbox2 = QHBoxLayout()
+        vbox2.addWidget(self.settingPathDownloaded)
+        vbox2.addWidget(b4)
+        flo.addRow("Download Archive", vbox2)
+        vbox3 = QHBoxLayout()
+        vbox3.addWidget(b5)
+        vbox3.addWidget(b6)
+        flo.addRow("", vbox3)
+
+        self.settingsPanelWidget.setLayout(flo)
+        self.settingsPanelWidget.setStyleSheet(
+            "QWidget {background-color:#ddb892}")
+        self.settingsPanelWidget.setGeometry(0, 100, 800, 380)
 
     def Footer(self, text):
         self.footerBackground = QFrame(self)
         self.footerBackground.setStyleSheet(
-            "QWidget { background-color: %s}" % self.colorDarkGreen)
+            "QWidget {background-color:%s}" % self.colorDarkGreen)
         self.footerMessage = QLabel(text, self)
-        self.footerMessage.setStyleSheet("QWidget { color: white}")
+        self.footerMessage.setStyleSheet("QWidget {color: white}")
+
+        self.footerProgress = QProgressBar(self)
+        self.footerProgress.setHidden(True)
+        self.footerProgress.setTextVisible(False)
+        self.footerProgress.setMaximum(100)
+        self.footerProgress.setStyleSheet(
+            "QProgressBar{ color: yellow; } ")
 
     def FooterUpdate(self, message, color="white"):
+        # TODO need to create a function for footer message, to prevent repeat
         cprint(message, color)
+        list_number_str = [str(i) for i in range(10)]
+        if(self.IsProcessing) and any(i in message for i in list_number_str):
+            self.footerProgress.setHidden(False)
+            self.footerProgress.setValue(
+                round(float(message.split("%")[0].replace(" ", ""))))
+            self.footerMessage.setGeometry(
+                310, self.window_height-self.sizeFooterContainer, self.window_width-310, self.sizeFooterContainer)
+            self.ReloadWindows()
+        else:
+            self.footerProgress.setHidden(True)
+            self.footerMessage.setGeometry(
+                5, self.window_height-self.sizeFooterContainer, self.window_width, self.sizeFooterContainer)
         self.footerMessage.setText(message)
-        self.footerMessage.setStyleSheet("QWidget { color: "+color+"}")
+        self.footerMessage.setStyleSheet("QWidget {color: "+color+"}")
 
     def InitData(self):
         # init data
-        self.DEFAULT_PATH_CONFIG = "./config.json"
-        self.DEFAULT_PATH_STORAGE = "./videos"
-        self.DEFAULT_PATH_DOWNLOADED = "./downloaded.txt"
-        self.DEFAULT_PATH_DATABASE = "./database.json"
-        self.DEFAULT_PATH_VIDEO_ERROR_LOG = "./error_video.log"
+        self.DEFAULT_PATH_CONFIG = os.path.normpath(
+            os.path.join(os.getcwd(), "./config.json"))
+        self.DEFAULT_PATH_STORAGE = os.path.normpath(
+            os.path.join(os.getcwd(), "./videos"))
+        self.DEFAULT_PATH_DOWNLOADED = os.path.normpath(
+            os.path.join(os.getcwd(), "./downloaded.txt"))
+        self.DEFAULT_PATH_DATABASE = os.path.normpath(
+            os.path.join(os.getcwd(), "./database.json"))
+        self.DEFAULT_PATH_VIDEO_ERROR_LOG = os.path.normpath(
+            os.path.join(os.getcwd(), "./error_video.log"))
         self.VIDEO_SOURCES = ["youtube.com", "ok.ru"]
 
         self.GLOBAL_THREAD = None
@@ -315,16 +655,21 @@ class UIApp(QWidget):
         if os.path.exists(self.DEFAULT_PATH_CONFIG):
             with open(self.DEFAULT_PATH_CONFIG) as json_file:
                 data_config = json.load(json_file)
-            self.DEFAULT_PATH_STORAGE = data_config["path_storage"]+"/"
-            self.DEFAULT_PATH_DOWNLOADED = data_config["path_downloaded"] + \
-                "/downloaded.txt"
+            self.DEFAULT_PATH_STORAGE = data_config["path_storage"]
+            self.DEFAULT_PATH_DOWNLOADED = data_config["path_downloaded"]
+            self.DEFAULT_USERNAME = data_config["username"]
+            self.DEFAULT_PASSWORD = data_config["password"]
         else:
             with open(self.DEFAULT_PATH_CONFIG, 'w') as outfile:
                 json.dump({
+                    "username": "",
+                    "password": "",
                     "path_storage": self.DEFAULT_PATH_STORAGE,
                     "path_downloaded": self.DEFAULT_PATH_DOWNLOADED
                 }, outfile, indent=2
                 )
+            self.DEFAULT_USERNAME = ""
+            self.DEFAULT_PASSWORD = ""
 
         if not os.path.exists(self.DEFAULT_PATH_STORAGE):
             os.mkdir(self.DEFAULT_PATH_STORAGE)
@@ -337,7 +682,7 @@ class UIApp(QWidget):
             with open(self.DEFAULT_PATH_DATABASE) as json_file:
                 self.listOfLinks = json.load(json_file)
             for idx, video in enumerate(self.listOfLinks["data"]):
-                if(video["status"] in ["Downloading", "Error"]):
+                if(video["status"] in global_video_status) and (video["status"] != "Downloaded"):
                     video["status"] = "Wait"
             with open(self.DEFAULT_PATH_DATABASE, 'w') as outfile:
                 json.dump(self.listOfLinks, outfile, indent=2)
@@ -482,14 +827,71 @@ class UIApp(QWidget):
         for idx, video in enumerate(self.listOfLinks["data"]):
             if video["id"] == video_id:
                 video["select_format"] = new_video_format
+                if new_video_format != "bestaudio":
+                    #format_index = next((index for (index, v) in enumerate( video["formats"]) if v["format_id"] == new_video_format), None)
+                    for idx, formatt in enumerate(video["formats"]):
+                        if(formatt != "bestaudio"):
+                            if formatt["format_id"] == new_video_format:
+                                break
+                    video["formats"].insert(
+                        0, video["formats"].pop(idx))
+                else:
+                    video["formats"].remove("bestaudio")
+                    video["formats"].insert(0, "bestaudio")
                 break
         self.UpdateDatabase()
+
+    def OpenVideoUrlLink(self, event, url_link=None):
+        if(url_link != None):
+            webbrowser.open(url_link)
+
+    def DeleteVideoInList(self, event, video_id=None):
+        if not self.IsProcessing:
+            if(video_id != None):
+                for idx, video in enumerate(self.listOfLinks["data"]):
+                    if(video["id"] == video_id):
+                        self.listOfLinks["data"].remove(video)
+                        self.UpdateDatabase()
+                        self.ContentContainer()
+                        break
 
     def UpdateDatabase(self):
         with open(self.DEFAULT_PATH_DATABASE, 'w') as json_outfile:
             json.dump(self.listOfLinks, json_outfile, indent=2)
 
         self.FooterUpdate("[INFO] Updated database.js", "green")
+
+    def SelectStoragePath(self):
+        dir_path = QFileDialog.getExistingDirectory(
+            self, "Choose Directory")
+        self.settingPathStorage.setText(dir_path)
+
+    def SelectDownloadArchivePath(self):
+        dir_path = QFileDialog.getExistingDirectory(
+            self, "Choose Directory")
+        self.settingPathDownloaded.setText(dir_path+"/downloaded.txt")
+
+    def SaveSettings(self):
+        #cprint(self.settingUsername.text(), 'yellow')
+        #cprint(self.settingPassword.text(), 'yellow')
+        #cprint(self.settingPathStorage.text(), 'yellow')
+        #cprint(self.settingPathDownloaded.text(), 'yellow')
+        with open(self.DEFAULT_PATH_CONFIG, 'w') as json_file:
+            json.dump({
+                "username": self.settingUsername.text(),
+                "password": self.settingPassword.text(),
+                "path_storage": self.settingPathStorage.text(),
+                "path_downloaded": self.settingPathDownloaded.text()
+            }, json_file, indent=2)
+        self.FooterUpdate("[INFO] Updated setting in config.json", "green")
+        self.CancelSetting()
+
+    def CancelSetting(self):
+        self.IsProcessing = False
+        self.IsProcessingSetting = False
+        self.MenuShowButton()
+        self.scroll.setHidden(False)
+        self.settingsPanelWidget.setHidden(True)
 
 
 def Main():

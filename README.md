@@ -49,3 +49,7 @@
 `python -m eel tuli_video_download.py web --icon=web\img\logo.ico --onefile --name="TuLi Video Download" --noconsole`
 
 `python -m eel tuli_video_download.py web --icon=web\img\logo.ico --onefile --name="TuLi Video Download Console"`
+
+#TODO
+proxy: URL of the proxy server to use
+geo_verification_proxy: URL of the proxy to use for IP address verification on geo-restricted sites. (Experimental)

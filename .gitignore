@@ -7,7 +7,6 @@ videos/*
 config.json
 database.json
 links.txt
-backup/*
 
 
 # Byte-compiled / optimized / DLL files

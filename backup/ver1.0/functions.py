@@ -3,6 +3,9 @@ import youtube_dl
 from termcolor import cprint
 import sys
 import threading
+from tkinter import *
+from tkinter import filedialog as fd
+from tkinter.messagebox import askyesno
 
 
 class MyLogger(object):
@@ -92,15 +95,6 @@ def ExtractInfoData(video_data):
             video_data["formats"] = temp_list.copy()
             break
 
-    # delete formats contain audio
-    temp_list = list()
-    for idx, formatt in enumerate(video_data["formats"]):
-        if "audio" not in formatt["format"]:
-            if formatt["filesize"] != 0:
-                temp_list.append(formatt)
-    video_data["formats"] = temp_list
-    video_data["formats"].insert(1, "bestaudio")
-
     if(video_data.get("channel") == None):
         video_data.setdefault("channel", video_data["uploader"])
 
@@ -108,7 +102,7 @@ def ExtractInfoData(video_data):
         "id": video_data["id"],
         "channel": video_data["channel"].replace(" ", ""),
         "webpage_url": video_data["webpage_url"],
-        "title": video_data["id"]+' - '+video_data["title"][:100].replace("/", ""),
+        "title": video_data["id"]+' - '+video_data["title"][:50].replace("/", ""),
         "thumbnail": video_data["thumbnail"],
         "select_format": video_data["formats"][0]["format_id"],
         "formats": video_data["formats"],
@@ -153,13 +147,41 @@ class KThread(threading.Thread):
         self.killed = True
 
 
-def ConvertVideoSize(video_size):
-    if video_size == None:
-        return str(0)
-    else:
-        toMB = video_size / pow(1024, 2)
-        toGB = video_size / pow(1024, 3)
-        if toGB > 1:
-            return str(round(toGB, 2)) + " GB"
-        else:
-            return str(round(toMB, 2)) + " MB"
+default_logo = './web/img/logo.ico'
+
+
+def DialogSelectFile():
+    filetypes = (
+        ('text files', '*.txt'),
+        ('All files', '*.*')
+    )
+    root = Tk()
+    # root.wm_iconbitmap(default_logo)
+    root.withdraw()
+    filename = fd.askopenfilename(title='Open a file',
+                                  # initialdir='/',
+                                  filetypes=filetypes)
+    root.destroy()
+    print(filename)
+    return filename
+
+
+def DialogSelectDirectory():
+    root = Tk()
+    # root.wm_iconbitmap(default_logo)
+    root.withdraw()
+    directory = fd.askdirectory()
+    root.destroy()
+    print(directory)
+    return directory
+
+
+def DialogYesNo(title, message):
+    root = Tk()
+    # root.wm_iconbitmap(default_logo)
+    root.geometry('0x0')
+    answer = askyesno(title=title,
+                      message=message)
+    if answer:
+        root.destroy()
+    return answer
