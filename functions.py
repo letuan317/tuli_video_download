@@ -1,19 +1,34 @@
 from __future__ import unicode_literals
 import youtube_dl
+import yt_dlp
+from yt_dlp.postprocessor.common import PostProcessor
+
 from termcolor import cprint
 import sys
 import threading
+import json
 
 
-class MyLogger(object):
+class MyLogger:
     def debug(self, msg):
-        pass
+        # For compatability with youtube-dl, both debug and info are passed into debug
+        # You can distinguish them by the prefix '[debug] '
+        if msg.startswith('[debug] '):
+            pass
+        else:
+            self.info(msg)
+
+    def info(self, msg):
+        if msg.startswith('[download] '):
+            pass
+        else:
+            cprint("MyLogger: " + msg, "green")
 
     def warning(self, msg):
-        pass
+        cprint("MyLogger: " + msg, "yellow")
 
     def error(self, msg):
-        print(msg)
+        cprint("MyLogger: " + msg, "red")
 
 
 def MyHook(d):
@@ -21,7 +36,7 @@ def MyHook(d):
         print('Done downloading, now converting ...')
 
 
-def GetYoutubeInfo(yt_link, listOfLinksDownloaded):
+def GetYoutubeInfo(yt_link, listOfLinksDownloaded, restricted=False):
     if("youtube.com" in yt_link and "list=" not in yt_link):
         # Single youtube video
         temp_id = yt_link.split('watch?v=')[1].split("&")[0]
@@ -40,7 +55,9 @@ def GetYoutubeInfo(yt_link, listOfLinksDownloaded):
             'progress_hooks': [MyHook],
         }
 
-        ydl = youtube_dl.YoutubeDL(ydl_opts)
+        ydl = yt_dlp.YoutubeDL(
+            ydl_opts) if restricted else youtube_dl.YoutubeDL(ydl_opts)
+
         try:
             with ydl:
                 result = ydl.extract_info(yt_link,
@@ -64,7 +81,7 @@ def GetYoutubePlaylistInfo(yt_link):
         'progress_hooks': [MyHook],
     }
 
-    ydl = youtube_dl.YoutubeDL(ydl_opts)
+    ydl = yt_dlp.YoutubeDL(ydl_opts)
 
     try:
         with ydl:
@@ -79,7 +96,7 @@ def GetYoutubePlaylistInfo(yt_link):
         return False, str(e).strip("\r\n")
 
 
-def ExtractInfoData(video_data):
+def ExtractInfoData(video_data, restricted=False):
     for i in range(len(video_data["formats"])-1, 0, -1):
         if((video_data["formats"][i]["width"] == 1920 or video_data["formats"][i]["height"] == 1920) and
            video_data["formats"][i]["ext"] == "mp4"):
@@ -107,14 +124,17 @@ def ExtractInfoData(video_data):
     data = {
         "id": video_data["id"],
         "channel": video_data["channel"].replace(" ", ""),
+        "channel_id": video_data["channel_id"],
         "webpage_url": video_data["webpage_url"],
-        "title": video_data["id"]+' - '+video_data["title"][:100].replace("/", ""),
+        "title": video_data["id"]+'-'+video_data["title"].replace("/", "").replace(" ", ""),
         "thumbnail": video_data["thumbnail"],
         "select_format": video_data["formats"][0]["format_id"],
         "formats": video_data["formats"],
         "status": "Wait",
-        # Wait, Dowloaded, Error
+        "restricted": False
     }
+    data["restricted"] = True if restricted else False
+
     return data
 
 

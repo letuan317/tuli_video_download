@@ -5,7 +5,7 @@ def Logger():
     Log_Format = "%(levelname)s %(asctime)s - %(message)s"
 
     logging.basicConfig(filename="logfile.log",
-                        filemode="a",
+                        # filemode="a",
                         format=Log_Format,
                         level=logging.ERROR)
 

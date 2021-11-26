@@ -51,5 +51,15 @@
 `python -m eel tuli_video_download.py web --icon=web\img\logo.ico --onefile --name="TuLi Video Download Console"`
 
 #TODO
+
+Sin in require username
+
+save with channel id
+
 proxy: URL of the proxy server to use
 geo_verification_proxy: URL of the proxy to use for IP address verification on geo-restricted sites. (Experimental)
+
+#BUG
+
+1. Add too many videos will make reload Gui too slow
+2. Add channel, frozen application

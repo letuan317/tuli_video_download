@@ -1,7 +1,9 @@
 from __future__ import unicode_literals
+import time
+import youtube_dl
 import yt_dlp
 from yt_dlp.postprocessor.common import PostProcessor
-import youtube_dl
+
 
 from PyQt5 import *
 from PyQt5.QtCore import *
@@ -14,6 +16,7 @@ from termcolor import cprint
 import json
 import os
 import sys
+import glob
 from functools import partial
 
 import functions
@@ -51,13 +54,17 @@ class MyLogger:
             self.info(msg)
 
     def info(self, msg):
-        pass
+        if msg.startswith('[download] '):
+            pass
+        else:
+            cprint("MyLogger: " + msg, "green")
 
     def warning(self, msg):
+        cprint("MyLogger: " + msg, "yellow")
         pass
 
     def error(self, msg):
-        print("MyLogger: " + msg)
+        cprint("MyLogger: " + msg, "red")
 
 
 class MyCustomPP(PostProcessor):
@@ -71,7 +78,7 @@ class ThreadClass(QThread):
     update_content_signal = pyqtSignal(list)
     update_database_signal = pyqtSignal(list)
     update_process_signal = pyqtSignal(str)
-    #update_error_signal = pyqtSignal(str)
+    # update_error_signal = pyqtSignal(str)
     update_done_signal = pyqtSignal(bool)
 
     def __init__(self, parent=None, force=False, listOfLinks=[], DEFAULT_PATH_DOWNLOADED=None, DEFAULT_PATH_STORAGE=None):
@@ -103,12 +110,14 @@ class ThreadClass(QThread):
         if self.listOfLinks and self.DEFAULT_PATH_DOWNLOADED != None and self.DEFAULT_PATH_STORAGE != None:
             for idx, video in enumerate(self.listOfLinks):
                 is_completed = False
+                # FIXME error cant force download
                 if(video["status"] in global_video_status) and (video["status"] != "Downloaded"):
                     video["status"] = "Downloading"
                     self.update_content_signal.emit(self.listOfLinks)
-                    output_file = self.DEFAULT_PATH_STORAGE + '/' + \
-                        video["channel"]+'-'+video['id'] + \
-                        '-'+video["title"]+".%(ext)s"
+                    output_file_without_extension = self.DEFAULT_PATH_STORAGE + '/' + \
+                        video["channel_id"]+"-" + video["channel"]+'-' + \
+                        video["title"] + "-f" + video["select_format"]
+                    output_file = output_file_without_extension + ".%(ext)s"
                     ydl_opts = {
                         'outtmpl': output_file,
                         'noplaylist': True,
@@ -129,8 +138,7 @@ class ThreadClass(QThread):
                         ydl_opts['format'] = video["select_format"] + \
                             '+bestaudio'
 
-                    message = "[*] Starting download video " + \
-                        video["title"]
+                    message = "[*] Starting download video " + video["title"]
                     cprint(message, "yellow")
                     global_log.info(message)
                     try:
@@ -140,25 +148,17 @@ class ThreadClass(QThread):
                             ydl.extract_info(video["webpage_url"])
                         is_completed = True
                     except Exception as e:
-                        cprint("Download 01: "+str(e), "red")
+                        cprint("Download with yt_dlp: "+str(e), "red")
                         global_log.error(e)
                         try:
-                            global_log.info("Trying yt_dlp download...")
-                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            global_log.info("Trying youtube_dl...")
+                            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                                 ydl.download(video["webpage_url"])
                             is_completed = True
                         except Exception as e:
-                            cprint("Download 02: "+str(e), "red")
+                            cprint("Download with youtube_dl: "+str(e), "red")
                             global_log.error(e)
-                            try:
-                                global_log.info("Trying youtube_dl...")
-                                with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                                    ydl.download(video["webpage_url"])
-                                is_completed = True
-                            except Exception as e:
-                                cprint("Download 03: "+str(e), "red")
-                                global_log.error(e)
-                    if is_completed:
+                    if is_completed or glob.glob(output_file_without_extension+".*"):
                         video["status"] = "Downloaded"
                         self.update_content_signal.emit(self.listOfLinks)
                         self.update_database_signal.emit(self.listOfLinks)
@@ -185,6 +185,7 @@ class UIApp(QWidget):
         self.setGeometry(80, 50, self.window_width, self.window_height)
         self.setMinimumSize(self.window_width, self.window_height)
         self.setWindowTitle(program_name)
+        self.setWindowIcon(QIcon('img/streaming.png'))
 
         self.colorDarkGreen = "#264653"
         self.colorGreen = "#2a9d8f"
@@ -302,29 +303,31 @@ class UIApp(QWidget):
         self.timer.timeout.connect(self.UpdateScrollContent)
 
     def ContentContainer(self):
+        # BUG not responding when reload, so need to make a thread
         self.videosContainer = []
         self.scroll_widget = QWidget()
         self.scroll_vbox = QVBoxLayout()
-
+        start = time.time()
         for idx, video in enumerate(self.listOfLinks["data"]):
-            videoBackground, thumbnail, title, channel, combo_box, status, btn_link, btn_delete = self.VideoContainer(
-                y=110*(idx), video_id=video["id"], url_image=video["thumbnail"], title=video["title"], channel=video["channel"], formats=video["formats"],
-                status=video["status"], url_link=video["webpage_url"])
-            self.videosContainer.append({"videoBackground": videoBackground, "thumbnail": thumbnail,
-                                        "title": title, "channel": channel, "combo_box": combo_box, "status": status, "btn_link": btn_link, "btn_delete": btn_delete})
+            temp = self.VideoContainer(video)
+            self.videosContainer.append(temp)
 
-            self.scroll_vbox.addWidget(videoBackground)
-            self.scroll_vbox.addWidget(thumbnail)
-            self.scroll_vbox.addWidget(title)
-            self.scroll_vbox.addWidget(channel)
-            self.scroll_vbox.addWidget(combo_box)
-            self.scroll_vbox.addWidget(status)
-            self.scroll_vbox.addWidget(btn_link)
-            self.scroll_vbox.addWidget(btn_delete)
+            self.scroll_vbox.addWidget(temp["videoBackground"])
+            self.scroll_vbox.addWidget(temp["thumbnail"])
+            self.scroll_vbox.addWidget(temp["title"])
+            self.scroll_vbox.addWidget(temp["channel"])
+            self.scroll_vbox.addWidget(temp["combo_box"])
+            self.scroll_vbox.addWidget(temp["status"])
+            self.scroll_vbox.addWidget(temp["btn_link"])
+            self.scroll_vbox.addWidget(temp["btn_delete"])
+        end = time.time()
+        global_log.critical("ContentContainer loop : " + str(end-start))
 
+        start = time.time()
         self.scroll_widget.setLayout(self.scroll_vbox)
         self.scroll.setWidget(self.scroll_widget)
-
+        end = time.time()
+        global_log.critical("ContentContainer scroll set : " + str(end-start))
         self.ReloadWindows()
 
     def resizeEvent(self, event):
@@ -358,7 +361,8 @@ class UIApp(QWidget):
         for i in range(0, len(self.videosContainer)):
             self.videosContainer[i]["videoBackground"].setGeometry(
                 5, 110*(i)+10, self.window_width-30, 100)
-            self.videosContainer[i]["thumbnail"].move(10, 110*(i)+15)
+            self.videosContainer[i]["thumbnail"].setGeometry(
+                10, 110*(i)+15, 200, 90)
             self.videosContainer[i]["title"].setGeometry(
                 175, 110*(i)+10, self.window_width-280, 50)
             self.videosContainer[i]["channel"].setGeometry(
@@ -367,49 +371,49 @@ class UIApp(QWidget):
                 175+round((self.window_width-180)*2/10)+5, 110*(i)+72, round((self.window_width-180)*6/10), 25)
             self.videosContainer[i]["status"].setGeometry(
                 175+round((self.window_width-180)*8/10)+10, 110*(i)+60, round((self.window_width-180)*1.9/10)-10, 50)
-            self.videosContainer[i]["btn_link"].move(
-                self.window_width - 90, 110*(i)+15)
-            self.videosContainer[i]["btn_delete"].move(
-                self.window_width - 60, 110*(i)+15)
+            self.videosContainer[i]["btn_link"].setGeometry(
+                self.window_width - 90, 110*(i)+15, 24, 24)
+            self.videosContainer[i]["btn_delete"].setGeometry(
+                self.window_width - 60, 110*(i)+15, 24, 24)
 
-    def VideoContainer(self, y, video_id, url_image, title, channel, formats, status, url_link):
+    def VideoContainer(self, video):
         videoBackground = QFrame()
         videoBackground.setStyleSheet(
             "QWidget {border-radius: 5px; background-color:%s}" % self.colorGreenArmy)
 
-        data = request.urlopen(url_image).read()
+        data = request.urlopen(video["thumbnail"]).read()
         pixmap = QPixmap()
         pixmap.loadFromData(data)
         pixmap = pixmap.scaled(200, 90, Qt.KeepAspectRatio)
         thumbnail = QLabel()
         thumbnail.setPixmap(pixmap)
 
-        title = QLabel(title)
+        title = QLabel(video["channel_id"]+"-"+video["title"])
         title.setStyleSheet(
             "QWidget {color: white; font-size: 15px; font-weight: bold}")
 
-        channel = QLabel(channel)
+        channel = QLabel(video["channel"])
         channel.setStyleSheet("QWidget {color: white;}")
 
         combo_box = QComboBox()
-        for ft in formats:
+        for ft in video["formats"]:
             combo_box.addItem("bestaudio") if ft == "bestaudio" else combo_box.addItem(", ".join((ft["format_id"], ft["format"], ft["ext"], ft["format_note"], str(
                 ft["fps"])+" fps", functions.ConvertVideoSize(ft["filesize"]))))
         combo_box.activated.connect(
-            lambda: self.UpdateSelectFormat(video_id, combo_box.currentText()))
+            lambda: self.UpdateSelectFormat(video["id"], combo_box.currentText()))
 
-        if status == "Wait":
+        if video["status"] == "Wait":
             colorStatus = "white"
-        elif status == "Downloading":
+        elif video["status"] == "Downloading":
             colorStatus = self.colorYellow
-        elif status == "Downloaded":
+        elif video["status"] == "Downloaded":
             colorStatus = self.colorGreen
             if self.forceDownload.isChecked() == False:
                 combo_box.setEnabled(False)
         else:
-            print(status)
+            print(video["status"])
             colorStatus = self.colorRed
-        status = QLabel(status)
+        status = QLabel(video["status"])
         status.setStyleSheet(
             "QWidget {color: "+colorStatus+"; font-size: 15px; font-weight: bold;}")
 
@@ -418,14 +422,14 @@ class UIApp(QWidget):
         pixmap = pixmap.scaled(24, 24, Qt.KeepAspectRatio)
         btn_link.setPixmap(pixmap)
         btn_link.mousePressEvent = partial(
-            self.OpenVideoUrlLink, url_link=url_link)
+            self.OpenVideoUrlLink, url_link=video["webpage_url"])
 
         btn_delete = QLabel()
         pixmap = QPixmap("img/icons8-delete-bin-48.png")
         pixmap = pixmap.scaled(24, 24, Qt.KeepAspectRatio)
         btn_delete.setPixmap(QPixmap(pixmap))
         btn_delete.mousePressEvent = partial(
-            self.DeleteVideoInList, video_id=video_id)
+            self.DeleteVideoInList, video_id=video["id"])
 
         if self.IsProcessing:
             combo_box.setEnabled(False)
@@ -440,26 +444,30 @@ class UIApp(QWidget):
         status.setGeometry(175, y+60, 100, 50)
         '''
 
-        return videoBackground, thumbnail, title, channel, combo_box, status, btn_link, btn_delete
+        return {"videoBackground": videoBackground, "thumbnail": thumbnail,
+                "title": title, "channel": channel, "combo_box": combo_box, "status": status, "btn_link": btn_link, "btn_delete": btn_delete}
 
     def ActionPasteLink(self, event):
         if not self.IsProcessing:
-            self.IsProcessing = True
             cprint('[INFO] ActionPasteLink', "green")
             text_clipborad = QApplication.clipboard().text()
             message = "Clipboard: " + text_clipborad
+            global_log.info(message)
             self.FooterUpdate(message)
+            self.IsProcessing = True
             self.GetInfo(text_clipborad)
             self.IsProcessing = False
+            self.ContentContainer()
 
     def ActionAddFile(self, event):
         if not self.IsProcessing:
             cprint('[INFO] ActionAddFile', "green")
             fileName = QFileDialog.getOpenFileName(self, 'OpenFile')
-            fr = open(fileName, 'r')
-            for url_link in fr:
-                self.GetInfo(url_link.rstrip("\n"))
-            fr.close()
+            if type(fileName) == str:
+                fr = open(fileName, 'r')
+                for url_link in fr:
+                    self.GetInfo(url_link.rstrip("\n"))
+                fr.close()
 
     def ActionDownload(self, event):
         if not self.IsProcessing:
@@ -543,9 +551,11 @@ class UIApp(QWidget):
     def ActionClear(self, event):
         if not self.IsProcessing:
             cprint('[INFO] ActionAddFile', "green")
+            temp_list = []
             for idx, video in enumerate(self.listOfLinks["data"]):
-                if(video["status"] == "Downloaded"):
-                    self.listOfLinks["data"].remove(video)
+                if video["status"] != "Downloaded":
+                    temp_list.append(video)
+            self.listOfLinks["data"] = temp_list.copy()
             self.UpdateDatabase()
             self.ContentContainer()
 
@@ -628,12 +638,15 @@ class UIApp(QWidget):
         cprint(message, color)
         list_number_str = [str(i) for i in range(10)]
         if(self.IsProcessing) and any(i in message for i in list_number_str):
-            self.footerProgress.setHidden(False)
-            self.footerProgress.setValue(
-                round(float(message.split("%")[0].replace(" ", ""))))
-            self.footerMessage.setGeometry(
-                310, self.window_height-self.sizeFooterContainer, self.window_width-310, self.sizeFooterContainer)
-            self.ReloadWindows()
+            try:
+                self.footerProgress.setHidden(False)
+                self.footerProgress.setValue(
+                    round(float(message.split("%")[0].replace(" ", ""))))
+                self.footerMessage.setGeometry(
+                    310, self.window_height-self.sizeFooterContainer, self.window_width-310, self.sizeFooterContainer)
+                self.ReloadWindows()
+            except Exception as e:
+                self.footerProgress.setHidden(True)
         else:
             self.footerProgress.setHidden(True)
             self.footerMessage.setGeometry(
@@ -700,19 +713,21 @@ class UIApp(QWidget):
                 json.dump(self.listOfLinks, outfile, indent=2)
         else:
             self.listOfLinks = {"data": []}
+        self.LoadDownloadedTxt()
+        if not os.path.exists(self.DEFAULT_PATH_VIDEO_ERROR_LOG):
+            with open(self.DEFAULT_PATH_VIDEO_ERROR_LOG, 'w') as fw:
+                pass
 
+    def LoadDownloadedTxt(self):
         # Load downloaded video ids
         if os.path.exists(self.DEFAULT_PATH_DOWNLOADED):
+            self.listOfLinksDownloaded = []
             with open(self.DEFAULT_PATH_DOWNLOADED, "r") as fr:
                 for line in fr:
                     temp_id = line.split(" ")[1]
                     self.listOfLinksDownloaded.append(temp_id.rstrip("\n"))
-        cprint("[INFO] Length of downloaded.txt: " +
-               str(len(self.listOfLinksDownloaded)), 'green')
-
-        if not os.path.exists(self.DEFAULT_PATH_VIDEO_ERROR_LOG):
-            with open(self.DEFAULT_PATH_VIDEO_ERROR_LOG, 'w') as fw:
-                pass
+            cprint("[INFO] Length of downloaded.txt: " +
+                   str(len(self.listOfLinksDownloaded)), 'green')
 
     def GetInfo(self, url_link):
         cprint("getInfo: "+url_link, "blue")
@@ -732,22 +747,23 @@ class UIApp(QWidget):
             elif("youtube.com" in url_link and "list=" in url_link):
                 self.FooterUpdate(url_link + " is a youtube playlist", "green")
                 # Youtube playlist
-                answer = MessageBox(
-                    "Comfirmation", url_link+" is a playlist. Do you want download them?")
+                answer = MessageBox(self,
+                                    "Comfirmation", url_link+" is a playlist. Do you want download them?")
                 if answer:
                     self.PlaylistVideosLink(url_link)
             elif "youtube.com" in url_link and any(temp in url_link for temp in ["/channel/", "/c/"]):
                 self.FooterUpdate(url_link + " is a youtube channel", "green")
                 # Youtube channel
-                answer = MessageBox(
-                    "Comfirmation", url_link+" is a channel. Do you want download all videos?")
+                answer = MessageBox(self,
+                                    "Comfirmation", url_link+" is a channel. Do you want download all videos?")
                 if answer:
                     self.PlaylistVideosLink(url_link)
             else:
                 message = "[!] get_info_py: " + url_link
                 self.FooterUpdate(message, "red")
 
-    def SingleVideoLink(self, url_link, temp_id):
+    def SingleVideoLink(self, url_link, temp_id, restricted=False):
+        is_restricted = restricted
         cprint("[INFO] SingleVideoLink", "green")
         if(temp_id in self.listOfLinksDownloaded):
             message = "[!] Link is already downloaded: " + temp_id
@@ -761,7 +777,7 @@ class UIApp(QWidget):
                 message = "[+] It a link that can be downloaded"
                 self.FooterUpdate(message, "green")
                 check, data_video = functions.GetYoutubeInfo(
-                    url_link, self.listOfLinksDownloaded)
+                    url_link, self.listOfLinksDownloaded, restricted=is_restricted)
                 if(check == False and data_video == None):
                     message = "[!] Link is already downloaded: " + temp_id
                     self.FooterUpdate(message, "red")
@@ -770,7 +786,7 @@ class UIApp(QWidget):
                         "[*] Trying to extract info video", "green")
 
                     data_video = functions.ExtractInfoData(
-                        data_video)
+                        data_video, restricted=is_restricted)
 
                     self.FooterUpdate(
                         "[*] Extract info video SUCCESSFUL", "green")
@@ -782,8 +798,17 @@ class UIApp(QWidget):
 
                 else:   # link cant be get info by age, ...
                     # TODO restrict by age, login to download
-                    message = "[!] Link cant be get info by age: " + data_video
-                    self.FooterUpdate(message, "red")
+                    '''
+                    ERROR: Sign in to confirm your age
+                    This video may be inappropriate for some users.
+                    '''
+                    global_log.error(
+                        "ERROR: Sign in to confirm your age " + url_link)
+                    if not is_restricted and "Sign in to confirm your age" in data_video:
+                        message = "[!] " + data_video
+                        self.FooterUpdate(message, "red")
+                        self.SingleVideoLink(
+                            url_link, temp_id, restricted=True)
                     temp_list = []
                     with open(self.DEFAULT_PATH_VIDEO_ERROR_LOG, "r") as fr:
                         for line in fr:
@@ -802,7 +827,8 @@ class UIApp(QWidget):
         TODO Add videos from playlist, but some videos may be restrict by age,
         so it can get list of videos, and call SingVideoLink
       '''
-        check, list_videos_data = functions.GetYoutubePlaylistInfo(url_link)
+        check, list_videos_data = functions.GetYoutubePlaylistInfo(
+            url_link)
         if(check):
             for data_video in list_videos_data:
                 temp_id = data_video["id"]
@@ -822,8 +848,8 @@ class UIApp(QWidget):
                     self.FooterUpdate(message, "yellow")
 
         else:
-            message = "[!] PlaylistVideosLink: " + url_link
-            self.FooterUpdate(message, "red")
+            global_log.error(list_videos_data)
+            self.FooterUpdate(list_videos_data, "red")
 
             temp_list = []
             with open(self.DEFAULT_PATH_VIDEO_ERROR_LOG, "r") as fr:
@@ -840,7 +866,7 @@ class UIApp(QWidget):
             if video["id"] == video_id:
                 video["select_format"] = new_video_format
                 if new_video_format != "bestaudio":
-                    #format_index = next((index for (index, v) in enumerate( video["formats"]) if v["format_id"] == new_video_format), None)
+                    # format_index = next((index for (index, v) in enumerate( video["formats"]) if v["format_id"] == new_video_format), None)
                     for idx, formatt in enumerate(video["formats"]):
                         if(formatt != "bestaudio"):
                             if formatt["format_id"] == new_video_format:
@@ -884,18 +910,24 @@ class UIApp(QWidget):
         self.settingPathDownloaded.setText(dir_path+"/downloaded.txt")
 
     def SaveSettings(self):
-        #cprint(self.settingUsername.text(), 'yellow')
-        #cprint(self.settingPassword.text(), 'yellow')
-        #cprint(self.settingPathStorage.text(), 'yellow')
-        #cprint(self.settingPathDownloaded.text(), 'yellow')
+        # cprint(self.settingUsername.text(), 'yellow')
+        # cprint(self.settingPassword.text(), 'yellow')
+        # cprint(self.settingPathStorage.text(), 'yellow')
+        # cprint(self.settingPathDownloaded.text(), 'yellow')
+        self.DEFAULT_USERNAME = self.settingUsername.text()
+        self.DEFAULT_PASSWORD = self.settingPassword.text()
+        self.DEFAULT_PATH_STORAGE = self.settingPathStorage.text()
+        self.DEFAULT_PATH_DOWNLOADED = self.settingPathDownloaded.text()
         with open(self.DEFAULT_PATH_CONFIG, 'w') as json_file:
             json.dump({
-                "username": self.settingUsername.text(),
-                "password": self.settingPassword.text(),
-                "path_storage": self.settingPathStorage.text(),
-                "path_downloaded": self.settingPathDownloaded.text()
+                "username": self.DEFAULT_USERNAME,
+                "password": self.DEFAULT_PASSWORD,
+                "path_storage": self.DEFAULT_PATH_STORAGE,
+                "path_downloaded": self.DEFAULT_PATH_DOWNLOADED
             }, json_file, indent=2)
+
         self.FooterUpdate("[INFO] Updated setting in config.json", "green")
+        self.LoadDownloadedTxt()
         self.CancelSetting()
 
     def CancelSetting(self):
