@@ -50,6 +50,7 @@
 
 `python -m eel tuli_video_download.py web --icon=web\img\logo.ico --onefile --name="TuLi Video Download Console"`
 
+`pyi-makespec tuli_video_download.py -F --icon=icon.ico --noconsole`
 #TODO
 
 Sin in require username
@@ -63,3 +64,4 @@ geo_verification_proxy: URL of the proxy to use for IP address verification on g
 
 1. Add too many videos will make reload Gui too slow
 2. Add channel, frozen application
+3. Force download works incorrectly

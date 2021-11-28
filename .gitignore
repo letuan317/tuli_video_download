@@ -1,5 +1,5 @@
 videos/*
-
+dist/
 .DS_Store
 
 *.json

@@ -44,9 +44,8 @@ def GetYoutubeInfo(yt_link, listOfLinksDownloaded, restricted=False):
     elif("ok.ru" in yt_link):
         # ok.ru video
         temp_id = yt_link.split('video/')[1]
-    else:
-        # Youtube playlist
-        None
+    elif("youtu.be" in yt_link):
+        temp_id = yt_link.split('/')[-1]
 
     # check single youtube video
     if(temp_id not in listOfLinksDownloaded):
@@ -97,6 +96,7 @@ def GetYoutubePlaylistInfo(yt_link):
 
 
 def ExtractInfoData(video_data, restricted=False):
+    # BUG when try on a ok.ru video
     for i in range(len(video_data["formats"])-1, 0, -1):
         if((video_data["formats"][i]["width"] == 1920 or video_data["formats"][i]["height"] == 1920) and
            video_data["formats"][i]["ext"] == "mp4"):

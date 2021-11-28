@@ -76,10 +76,12 @@ class MyCustomPP(PostProcessor):
 class ThreadClass(QThread):
     any_signal = pyqtSignal(int)
     update_content_signal = pyqtSignal(list)
+    update_status_signal = pyqtSignal(dict)
     update_database_signal = pyqtSignal(list)
     update_process_signal = pyqtSignal(str)
     # update_error_signal = pyqtSignal(str)
     update_done_signal = pyqtSignal(bool)
+    Pause = True
 
     def __init__(self, parent=None, force=False, listOfLinks=[], DEFAULT_PATH_DOWNLOADED=None, DEFAULT_PATH_STORAGE=None):
         super(ThreadClass, self).__init__(parent)
@@ -109,11 +111,17 @@ class ThreadClass(QThread):
         cprint("[+] Starting download ...", "yellow")
         if self.listOfLinks and self.DEFAULT_PATH_DOWNLOADED != None and self.DEFAULT_PATH_STORAGE != None:
             for idx, video in enumerate(self.listOfLinks):
+                self.Pause = True
                 is_completed = False
                 # FIXME error cant force download
                 if(video["status"] in global_video_status) and (video["status"] != "Downloaded"):
                     video["status"] = "Downloading"
-                    self.update_content_signal.emit(self.listOfLinks)
+                    # self.update_content_signal.emit(self.listOfLinks)
+                    self.update_status_signal.emit(
+                        {"idx": idx, "status": video["status"]})
+                    while True:
+                        if not self.Pause:
+                            break
                     output_file_without_extension = self.DEFAULT_PATH_STORAGE + '/' + \
                         video["channel_id"]+"-" + video["channel"]+'-' + \
                         video["title"] + "-f" + video["select_format"]
@@ -160,14 +168,23 @@ class ThreadClass(QThread):
                             global_log.error(e)
                     if is_completed or glob.glob(output_file_without_extension+".*"):
                         video["status"] = "Downloaded"
-                        self.update_content_signal.emit(self.listOfLinks)
+                        # self.update_content_signal.emit(self.listOfLinks)
+                        self.update_status_signal.emit(
+                            {"idx": idx, "status": video["status"]})
                         self.update_database_signal.emit(self.listOfLinks)
+                        while True:
+                            if not self.Pause:
+                                break
                     else:
                         cprint("Video cant be downloaded", "red")
                         video["status"] = "Error"
-                        self.update_content_signal.emit(self.listOfLinks)
+                        self.update_status_signal.emit(
+                            {"idx": idx, "status": video["status"]})
+                        # self.update_content_signal.emit(self.listOfLinks)
                         self.update_database_signal.emit(self.listOfLinks)
-                        # self.update_error_signal.emit(str(e))
+                        while True:
+                            if not self.Pause:
+                                break
         self.update_done_signal.emit(True)
 
     def stop(self):
@@ -304,6 +321,8 @@ class UIApp(QWidget):
 
     def ContentContainer(self):
         # BUG not responding when reload, so need to make a thread
+        # should change to:
+        # 3. delete video just find index video and let scroll_vbox remove widget
         self.videosContainer = []
         self.scroll_widget = QWidget()
         self.scroll_vbox = QVBoxLayout()
@@ -329,6 +348,46 @@ class UIApp(QWidget):
         end = time.time()
         global_log.critical("ContentContainer scroll set : " + str(end-start))
         self.ReloadWindows()
+
+    def ContentContainerUpdateVideoStatus(self, idx, status):
+        video = self.listOfLinks["data"][idx]
+        video["status"] = status
+        temp_status = self.CreateVideoStatusWidget(status)
+        self.scroll_vbox.removeWidget(self.videosContainer[idx]["status"])
+        # self.scroll_vbox.deleteLater()
+        self.videosContainer[idx]["status"] = temp_status
+        self.scroll_vbox.addWidget(self.videosContainer[idx]["status"])
+
+    def ContentContainerAddNewVideo(self):
+        video = self.listOfLinks["data"][-1]
+        self.IsProcessing = False
+        temp = self.VideoContainer(video)
+        self.IsProcessing = True
+        self.videosContainer.append(temp)
+        self.scroll_vbox.addWidget(temp["videoBackground"])
+        self.scroll_vbox.addWidget(temp["thumbnail"])
+        self.scroll_vbox.addWidget(temp["title"])
+        self.scroll_vbox.addWidget(temp["channel"])
+        self.scroll_vbox.addWidget(temp["combo_box"])
+        self.scroll_vbox.addWidget(temp["status"])
+        self.scroll_vbox.addWidget(temp["btn_link"])
+        self.scroll_vbox.addWidget(temp["btn_delete"])
+        self.ReloadWindows()
+
+    def ContentContainerRemoveVideo(self, video):
+        temp = self.VideoContainer(video)
+        self.videosContainer.append(temp)
+        self.scroll_vbox.removeWidget(temp["videoBackground"])
+        self.scroll_vbox.removeWidget(temp["thumbnail"])
+        self.scroll_vbox.removeWidget(temp["title"])
+        self.scroll_vbox.removeWidget(temp["channel"])
+        self.scroll_vbox.removeWidget(temp["combo_box"])
+        self.scroll_vbox.removeWidget(temp["status"])
+        self.scroll_vbox.removeWidget(temp["btn_link"])
+        self.scroll_vbox.removeWidget(temp["btn_delete"])
+
+        self.scroll_widget.setLayout(self.scroll_vbox)
+        self.scroll.setWidget(self.scroll_widget)
 
     def resizeEvent(self, event):
         window_size = self.geometry()
@@ -358,6 +417,7 @@ class UIApp(QWidget):
         self.UpdateScrollContent()
 
     def UpdateScrollContent(self):
+
         for i in range(0, len(self.videosContainer)):
             self.videosContainer[i]["videoBackground"].setGeometry(
                 5, 110*(i)+10, self.window_width-30, 100)
@@ -401,21 +461,11 @@ class UIApp(QWidget):
                 ft["fps"])+" fps", functions.ConvertVideoSize(ft["filesize"]))))
         combo_box.activated.connect(
             lambda: self.UpdateSelectFormat(video["id"], combo_box.currentText()))
+        combo_box.setEnabled(True)
+        if self.forceDownload.isChecked() == False and video["status"] == "Downloaded":
+            combo_box.setEnabled(False)
 
-        if video["status"] == "Wait":
-            colorStatus = "white"
-        elif video["status"] == "Downloading":
-            colorStatus = self.colorYellow
-        elif video["status"] == "Downloaded":
-            colorStatus = self.colorGreen
-            if self.forceDownload.isChecked() == False:
-                combo_box.setEnabled(False)
-        else:
-            print(video["status"])
-            colorStatus = self.colorRed
-        status = QLabel(video["status"])
-        status.setStyleSheet(
-            "QWidget {color: "+colorStatus+"; font-size: 15px; font-weight: bold;}")
+        status = self.CreateVideoStatusWidget(status_text=video["status"])
 
         btn_link = QLabel()
         pixmap = QPixmap("img/icons8-link-48.png")
@@ -447,6 +497,21 @@ class UIApp(QWidget):
         return {"videoBackground": videoBackground, "thumbnail": thumbnail,
                 "title": title, "channel": channel, "combo_box": combo_box, "status": status, "btn_link": btn_link, "btn_delete": btn_delete}
 
+    def CreateVideoStatusWidget(self, status_text):
+        if status_text == "Wait":
+            colorStatus = "white"
+        elif status_text == "Downloading":
+            colorStatus = self.colorYellow
+        elif status_text == "Downloaded":
+            colorStatus = self.colorGreen
+        else:
+            print(status_text)
+            colorStatus = self.colorRed
+        status = QLabel(status_text)
+        status.setStyleSheet(
+            "QWidget {color: "+colorStatus+"; font-size: 15px; font-weight: bold;}")
+        return status
+
     def ActionPasteLink(self, event):
         if not self.IsProcessing:
             cprint('[INFO] ActionPasteLink', "green")
@@ -457,7 +522,6 @@ class UIApp(QWidget):
             self.IsProcessing = True
             self.GetInfo(text_clipborad)
             self.IsProcessing = False
-            self.ContentContainer()
 
     def ActionAddFile(self, event):
         if not self.IsProcessing:
@@ -475,23 +539,28 @@ class UIApp(QWidget):
             self.FooterUpdate("[INFO] Starting download", "green")
             self.IsProcessing = True
             self.MenuHideButton()
-            # self.GLOBAL_THREAD = functions.KThread(target=self.RunDownloadedScript)
-            # self.GLOBAL_THREAD.start()
-            self.thread = ThreadClass(
+            self.threadDownload = ThreadClass(
                 parent=None, force=self.forceDownload.isChecked(), listOfLinks=self.listOfLinks["data"], DEFAULT_PATH_DOWNLOADED=self.DEFAULT_PATH_DOWNLOADED, DEFAULT_PATH_STORAGE=self.DEFAULT_PATH_STORAGE)
-            self.thread.start()
-            self.thread.update_content_signal.connect(
-                self.CallThreadUpdateContent)
-            self.thread.update_database_signal.connect(
+            #self.threadDownload.update_content_signal.connect( self.CallThreadUpdateContent)
+            self.threadDownload.update_status_signal.connect(
+                self.CallThreadUpdateStatus)
+            self.threadDownload.update_database_signal.connect(
                 self.CallThreadUpdateDatabase)
-            self.thread.update_process_signal.connect(
+            self.threadDownload.update_process_signal.connect(
                 self.CallThreadUpdateProcess)
-            self.thread.update_done_signal.connect(self.CallThreadUpdateDone)
-            # self.thread.update_error_signal.connect(self.CallThreadUpdateError)
+            self.threadDownload.update_done_signal.connect(
+                self.CallThreadUpdateDone)
+            self.threadDownload.start()
+            # self.threadpool.start(self.threadDownload)
 
-    def CallThreadUpdateContent(self, temp_list):
+    '''def CallThreadUpdateContent(self, temp_list):
         self.listOfLinks["data"] = temp_list
-        self.ContentContainer()
+        self.ContentContainer()'''
+
+    def CallThreadUpdateStatus(self, temp_dict):
+        self.ContentContainerUpdateVideoStatus(
+            temp_dict["idx"], temp_dict["status"])
+        self.threadDownload.Pause = False
 
     def CallThreadUpdateDatabase(self, temp_list):
         self.listOfLinks["data"] = temp_list
@@ -507,13 +576,12 @@ class UIApp(QWidget):
             self.ContentContainer()
             self.FooterUpdate("Done", "green")
 
-    # def CallThreadUpdateError(self, temp_str):
-        # global_log.error(temp_str)
+    # BUG Error when resume
 
     def ActionPause(self, event):
         if self.IsProcessing and not self.IsProcessingSetting:
             cprint('[INFO] ActionPause', "green")
-            self.thread.stop()
+            self.threadDownload.stop()
             for idx, video in enumerate(self.listOfLinks["data"]):
                 if video["status"] == "Downloading":
                     video["status"] = "Paused"
@@ -666,7 +734,7 @@ class UIApp(QWidget):
             os.path.join(os.getcwd(), "./database.json"))
         self.DEFAULT_PATH_VIDEO_ERROR_LOG = os.path.normpath(
             os.path.join(os.getcwd(), "./error_video.log"))
-        self.VIDEO_SOURCES = ["youtube.com", "ok.ru"]
+        self.VIDEO_SOURCES = ["youtube.com", "ok.ru", "youtu.be"]
 
         self.GLOBAL_THREAD = None
 
@@ -740,6 +808,10 @@ class UIApp(QWidget):
                 self.FooterUpdate(url_link + " is a youtube link", "green")
                 self.SingleVideoLink(url_link, url_link.split(
                     'watch?v=')[1].split("&")[0])
+            elif "youtu.be" in url_link:
+                # Single youtube video
+                self.FooterUpdate(url_link + " is a youtube link", "green")
+                self.SingleVideoLink(url_link, url_link.split('/')[-1])
             elif("ok.ru" in url_link):
                 self.FooterUpdate(url_link + " is a ok.ru link", "green")
                 # ok.ru video
@@ -794,7 +866,7 @@ class UIApp(QWidget):
                     with open(self.DEFAULT_PATH_DATABASE, 'w') as outfile:
                         json.dump(self.listOfLinks, outfile, indent=2)
 
-                    self.ContentContainer()
+                    self.ContentContainerAddNewVideo()
 
                 else:   # link cant be get info by age, ...
                     # TODO restrict by age, login to download
@@ -888,6 +960,7 @@ class UIApp(QWidget):
             if(video_id != None):
                 for idx, video in enumerate(self.listOfLinks["data"]):
                     if(video["id"] == video_id):
+                        # self.ContentContainerRemoveVideo(video)
                         self.listOfLinks["data"].remove(video)
                         self.UpdateDatabase()
                         self.ContentContainer()
