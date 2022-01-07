@@ -65,3 +65,5 @@ geo_verification_proxy: URL of the proxy to use for IP address verification on g
 1. Add too many videos will make reload Gui too slow
 2. Add channel, frozen application
 3. Force download works incorrectly
+4. When Downloading "format options" still select enable
+5. Add videos from playlist but when done format_options not able select

@@ -125,10 +125,8 @@ class ThreadClass(QThread):
                     output_file_without_extension = self.DEFAULT_PATH_STORAGE + '/' + \
                         video["channel_id"]+"-" + video["channel"]+'-' + \
                         video["title"] + "-f" + video["select_format"]
-
                     output_file = output_file_without_extension + ".%(ext)s"
                     ydl_opts = {
-                        'cookiefile': "youtube.com_cookies.txt",
                         'outtmpl': output_file,
                         'noplaylist': True,
                         'progress_hooks': [self.HookGetStatus],
@@ -137,11 +135,6 @@ class ThreadClass(QThread):
                     if not self.force:
                         ydl_opts['download_archive'] = self.DEFAULT_PATH_DOWNLOADED
                     if video["select_format"] == "bestaudio":
-                        output_file_without_extension = self.DEFAULT_PATH_STORAGE + '/' + \
-                            video["title"] + "-f" + video["select_format"]
-                        output_file = output_file_without_extension + \
-                            ".%(ext)s"
-                        ydl_opts['outtmpl'] = output_file
                         ydl_opts['format'] = video["select_format"]
                         ydl_opts['postprocessors'] = [{
                             'key': 'FFmpegExtractAudio',

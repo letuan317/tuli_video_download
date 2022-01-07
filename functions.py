@@ -50,12 +50,14 @@ def GetYoutubeInfo(yt_link, listOfLinksDownloaded, restricted=False):
     # check single youtube video
     if(temp_id not in listOfLinksDownloaded):
         ydl_opts = {
+            'cookiefile': "youtube.com_cookies.txt",
             'logger': MyLogger(),
             'progress_hooks': [MyHook],
         }
 
         ydl = yt_dlp.YoutubeDL(
-            ydl_opts) if restricted else youtube_dl.YoutubeDL(ydl_opts)
+            ydl_opts)
+        # if restricted else youtube_dl.YoutubeDL(ydl_opts)
 
         try:
             with ydl:
@@ -75,10 +77,10 @@ def GetYoutubeInfo(yt_link, listOfLinksDownloaded, restricted=False):
 
 
 def GetYoutubePlaylistInfo(yt_link):
-    ydl_opts = {
-        'logger': MyLogger(),
-        'progress_hooks': [MyHook],
-    }
+    ydl_opts = {'cookies': "youtube.com_cookies.txt",
+                'logger': MyLogger(),
+                'progress_hooks': [MyHook],
+                }
 
     ydl = yt_dlp.YoutubeDL(ydl_opts)
 
